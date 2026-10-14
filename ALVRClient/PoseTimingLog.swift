@@ -146,7 +146,7 @@ final class PoseTimingLog {
                           percentile(extrapDeg, 0.5), percentile(extrapDeg, 0.95), percentile(extrapMm, 0.5), percentile(extrapMm, 0.95),
                           percentile(compDeg, 0.5), percentile(compDeg, 0.95), percentile(compMm, 0.5), percentile(compMm, 0.95),
                           percentile(dDeg, 0.95), percentile(dMm, 0.95))
-        line.withCString { alvr_log(ALVR_LOG_LEVEL_INFO, $0) }
+        line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_INFO.rawValue), $0) }
         flushCsv()
     }
 

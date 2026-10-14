@@ -996,6 +996,7 @@ class Renderer {
            let queuedFrame {
             PerformanceTracker.shared.recordCompositorStart(timestampNs: queuedFrame.timestamp)
         }
+        var loggedPoseTiming = false
         for drawable in drawables {
             drawable.deviceAnchor = deviceAnchor
             
@@ -1010,7 +1011,8 @@ class Renderer {
             let simdDeviceAnchor = WorldTracker.shared.floorCorrectionTransform.asFloat4x4() * (deviceAnchor?.originFromAnchorTransform ?? matrix_identity_float4x4)
             let framePose = framePreviouslyPredictedPose ?? matrix_identity_float4x4
             
-            if ALVRClientApp.gStore.settings.logPoseTiming, drawable === drawables.first, let queuedFrame, renderingStreaming {
+            if ALVRClientApp.gStore.settings.logPoseTiming, !loggedPoseTiming, let queuedFrame, renderingStreaming {
+                loggedPoseTiming = true
                 PoseTimingLog.shared.recordDisplay(timestampNs: queuedFrame.timestamp, presentTimeS: vsyncTime, framePose: framePose, anchorPose: simdDeviceAnchor)
             }
             
