@@ -1010,6 +1010,10 @@ class Renderer {
             let simdDeviceAnchor = WorldTracker.shared.floorCorrectionTransform.asFloat4x4() * (deviceAnchor?.originFromAnchorTransform ?? matrix_identity_float4x4)
             let framePose = framePreviouslyPredictedPose ?? matrix_identity_float4x4
             
+            if ALVRClientApp.gStore.settings.logPoseTiming, drawable === drawables.first, let queuedFrame, renderingStreaming {
+                PoseTimingLog.shared.recordDisplay(timestampNs: queuedFrame.timestamp, presentTimeS: vsyncTime, framePose: framePose, anchorPose: simdDeviceAnchor)
+            }
+            
 #if DEBUG_ALVR_TRACKING
             WorldTracker.shared.lockDebuggables()
             

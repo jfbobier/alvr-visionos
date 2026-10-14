@@ -2536,7 +2536,9 @@ class WorldTracker {
         }
         
         // Fallback.
+        var usedFallbackAnchor = false
         if deviceAnchor == nil {
+            usedFallbackAnchor = true
             targetTimestampWalkedBack = CACurrentMediaTime()
             deviceAnchor = worldTracking.queryDeviceAnchor(atTimestamp: targetTimestampWalkedBack)
         }
@@ -3319,6 +3321,11 @@ class WorldTracker {
         
         let headMotion = AlvrDeviceMotion(device_id: WorldTracker.deviceIdHead, pose: headPose, linear_velocity: headLinVel, angular_velocity: headAngVel)
         trackingMotions.append(headMotion)
+
+        if ALVRClientApp.gStore.settings.logPoseTiming {
+            PoseTimingLog.shared.recordSend(reportedNs: reportedTargetTimestampNS, requestedTime: targetTimestamp, usedTime: targetTimestampWalkedBack,
+                                            anchorTime: deviceAnchor.timestamp, usedFallback: usedFallbackAnchor, pose: appleOriginFromAnchor)
+        }
         
         // selection ray tests, replaces left forearm
 #if false

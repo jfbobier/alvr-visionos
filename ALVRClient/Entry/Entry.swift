@@ -344,6 +344,16 @@ struct Entry: View {
                             saveAction()
                         }
 
+                        Toggle(isOn: $gStore.settings.logPoseTiming) {
+                            Text("Log pose timing")
+                            Text("Writes a pose/timestamp summary to the streamer log every second, and per-frame rows to pose_timing.csv.")
+                                .font(.system(size: 10))
+                        }
+                        .toggleStyle(.switch)
+                        .onChange(of: gStore.settings.logPoseTiming) {
+                            saveAction()
+                        }
+
                         Button {
                             openWindow(id: "InputDebug")
                         } label: {
