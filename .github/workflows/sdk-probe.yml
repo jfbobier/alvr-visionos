@@ -8,24 +8,15 @@ jobs:
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
-      - name: Dump GameController API surface
+      - name: Dump API surface 2
         run: |
-          SDK=$(xcrun --sdk xros --show-sdk-path); echo "SDK=$SDK"
+          SDK=$(xcrun --sdk xros --show-sdk-path)
           F="$SDK/System/Library/Frameworks/GameController.framework"
-          echo "=== HomeButton headers"; ls "$F/Headers" | grep -i -E "home|gesture|accessory|spatial" || true
-          echo "=== GCControllerHomeButtonSettingsManager.h"; cat "$F/Headers/GCControllerHomeButtonSettingsManager.h" 2>/dev/null || true
-          echo "=== SystemGesture / Home in headers"; grep -rn -i -E "SystemGesture|InputButtonHome|PreferredSystemGesture" "$F/Headers" | head -40
-          echo "=== swiftinterface"; find "$F" -name '*.swiftinterface' | head
-          for f in $(find "$F" -name 'arm64*-apple-xros.swiftinterface' | head -1); do grep -n -i -E "HomeButton|SystemGesture|SpatialAccessory|inputStateQueueDepth" "$f" | head -60; done
-      - name: Dump ARKit accessory API surface
-        run: |
-          SDK=$(xcrun --sdk xros --show-sdk-path)
-          for f in $(find "$SDK/System/Library/Frameworks/ARKit.framework" -name 'arm64*-apple-xros.swiftinterface' | head -1); do
-            grep -n -i -E "AccessoryTracking|AccessoryAnchor|predictAnchor|highFrameRate|updateAccessories" "$f" | head -60
-          done
-      - name: Dump CompositorServices timing API
-        run: |
-          SDK=$(xcrun --sdk xros --show-sdk-path)
-          for f in $(find "$SDK/System/Library/Frameworks/CompositorServices.framework" -name 'arm64*-apple-xros.swiftinterface' | head -1); do
-            grep -n -i -E "trackableAnchorTime|presentationTime|optimalInputTime|queryDeviceAnchor|deviceAnchor|predictTiming|Frame\.Timing" "$f" | head -60
+          I=$(find "$F" -name 'arm64e-apple-xros.swiftinterface' | head -1)
+          echo "=== HomeButtonSettingsManager swift"; sed -n 205,240p "$I"
+          echo "=== GCSpatialAccessory.h"; cat "$F/Headers/GCSpatialAccessory.h"
+          echo "=== ARKit accessory interface files"
+          grep -rl "AccessoryTrackingProvider" "$SDK/System/Library/Frameworks" 2>/dev/null | head
+          for f in $(grep -rl "AccessoryTrackingProvider" "$SDK/System/Library/Frameworks" --include='arm64e-apple-xros.swiftinterface' | head -2); do
+            echo "--- $f"; grep -n -i -E "AccessoryTrackingProvider|predictAnchor|AccessoryAnchor|updateAccessories|highFrame|public var timestamp|anchorUpdates" "$f" | head -60
           done
