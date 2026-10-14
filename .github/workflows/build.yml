@@ -6,6 +6,7 @@ name: Build visionOS client
 
 on:
   push:
+    branches-ignore: ['probe/**']
   pull_request:
   workflow_dispatch:
 
@@ -60,6 +61,9 @@ jobs:
           mkdir -p ALVR/build
           (cd ALVR/alvr/client_core && cbindgen --config cbindgen.toml --crate alvr_client_core --output ../../build/alvr_client_core.h)
           sh repack_alvr_client.sh
+
+      - name: Metal toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
 
       - name: Build app
         run: |
