@@ -54,6 +54,8 @@ final class PoseTimingLog {
     private var lastCompMm = 0.0
     private var lastCompDeg = 0.0
     private var lastTimestampNs: UInt64 = 0
+    private var accessoryLastTimestamp: [Bool: Double] = [:]
+    private var accessoryDeltasMs: [Bool: [Double]] = [:]
     private var csv: FileHandle?
     private var pendingCsv = ""
 
@@ -70,6 +72,16 @@ final class PoseTimingLog {
             if sentOrder.count > 512 {
                 sent.removeValue(forKey: sentOrder.removeFirst())
             }
+        }
+    }
+
+    /// Called for every accessory (controller) anchor update. `anchorTimestamp` is the anchor's own timestamp in seconds.
+    func recordAccessoryUpdate(isLeft: Bool, anchorTimestamp: Double) {
+        lock.withLock {
+            if let last = accessoryLastTimestamp[isLeft] {
+                accessoryDeltasMs[isLeft, default: []].append((anchorTimestamp - last) * 1000.0)
+            }
+            accessoryLastTimestamp[isLeft] = anchorTimestamp
         }
     }
 
@@ -146,7 +158,17 @@ final class PoseTimingLog {
                           percentile(extrapDeg, 0.5), percentile(extrapDeg, 0.95), percentile(extrapMm, 0.5), percentile(extrapMm, 0.95),
                           percentile(compDeg, 0.5), percentile(compDeg, 0.95), percentile(compMm, 0.5), percentile(compMm, 0.95),
                           percentile(dDeg, 0.95), percentile(dMm, 0.95))
-        line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_INFO.rawValue), $0) }
+        var accessoryText = ""
+        for (isLeft, name) in [(true, "L"), (false, "R")] {
+            if let d = accessoryDeltasMs[isLeft], d.count > 3 {
+                let mean = d.reduce(0, +) / Double(d.count)
+                accessoryText += String(format: " ctrl%@ n=%d hz=%.1f dt_ms p50/p95/max=%.1f/%.1f/%.1f", name, d.count, 1000.0 / max(mean, 0.001),
+                                        percentile(d, 0.5), percentile(d, 0.95), d.max() ?? 0)
+            }
+            accessoryDeltasMs[isLeft] = []
+        }
+        let fullLine = line + accessoryText
+        fullLine.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_INFO.rawValue), $0) }
         flushCsv()
     }
 
