@@ -1,0 +1,31 @@
+name: SDK probe
+on:
+  push:
+    branches: ['probe/**']
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dump GameController API surface
+        run: |
+          SDK=$(xcrun --sdk xros --show-sdk-path); echo "SDK=$SDK"
+          F="$SDK/System/Library/Frameworks/GameController.framework"
+          echo "=== HomeButton headers"; ls "$F/Headers" | grep -i -E "home|gesture|accessory|spatial" || true
+          echo "=== GCControllerHomeButtonSettingsManager.h"; cat "$F/Headers/GCControllerHomeButtonSettingsManager.h" 2>/dev/null || true
+          echo "=== SystemGesture / Home in headers"; grep -rn -i -E "SystemGesture|InputButtonHome|PreferredSystemGesture" "$F/Headers" | head -40
+          echo "=== swiftinterface"; find "$F" -name '*.swiftinterface' | head
+          for f in $(find "$F" -name 'arm64*-apple-xros.swiftinterface' | head -1); do grep -n -i -E "HomeButton|SystemGesture|SpatialAccessory|inputStateQueueDepth" "$f" | head -60; done
+      - name: Dump ARKit accessory API surface
+        run: |
+          SDK=$(xcrun --sdk xros --show-sdk-path)
+          for f in $(find "$SDK/System/Library/Frameworks/ARKit.framework" -name 'arm64*-apple-xros.swiftinterface' | head -1); do
+            grep -n -i -E "AccessoryTracking|AccessoryAnchor|predictAnchor|highFrameRate|updateAccessories" "$f" | head -60
+          done
+      - name: Dump CompositorServices timing API
+        run: |
+          SDK=$(xcrun --sdk xros --show-sdk-path)
+          for f in $(find "$SDK/System/Library/Frameworks/CompositorServices.framework" -name 'arm64*-apple-xros.swiftinterface' | head -1); do
+            grep -n -i -E "trackableAnchorTime|presentationTime|optimalInputTime|queryDeviceAnchor|deviceAnchor|predictTiming|Frame\.Timing" "$f" | head -60
+          done
