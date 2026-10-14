@@ -1302,8 +1302,14 @@ class RealityKitClientSystemCorrectlyAssociated : System {
         let vrrBuffer = frame.vrrBuffer
         
         // HACK: keep the depths separate to avoid z fighting
-        let rk_panel_depth_L = rk_panel_depth
-        let rk_panel_depth_R = rk_panel_depth - 10.0
+        var rk_panel_depth_L = rk_panel_depth
+        var rk_panel_depth_R = rk_panel_depth - 10.0
+        let focalDepthOverride = ALVRClientApp.gStore.settings.reprojectionFocalDepth
+        if focalDepthOverride > 0.0 {
+            // Same 70/80 ratio as the default so the two eye planes still don't z-fight.
+            rk_panel_depth_L = focalDepthOverride
+            rk_panel_depth_R = focalDepthOverride * 0.875
+        }
         
         // TL;DR  each eye has asymmetric render tangents, but we can't scale each half individually so we
         // have to do some math to move the center of the plane where it should be.

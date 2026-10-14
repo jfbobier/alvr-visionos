@@ -32,6 +32,9 @@ struct GlobalSettings: Codable {
     var chaperoneDistanceCm: Int = 0
     var showPerformanceHud: Bool = false
     var logPoseTiming: Bool = false
+    /// Distance (meters) of the focal plane the stream is reprojected onto. 0 keeps the legacy behavior (effectively
+    /// infinite: rotation-only reprojection, no head translation correction).
+    var reprojectionFocalDepth: Float = 0.0
     
     init() {}
     
@@ -62,6 +65,7 @@ struct GlobalSettings: Codable {
         self.chaperoneDistanceCm = try container.decodeIfPresent(Int.self, forKey: .chaperoneDistanceCm) ?? self.chaperoneDistanceCm
         self.showPerformanceHud = try container.decodeIfPresent(Bool.self, forKey: .showPerformanceHud) ?? self.showPerformanceHud
         self.logPoseTiming = try container.decodeIfPresent(Bool.self, forKey: .logPoseTiming) ?? self.logPoseTiming
+        self.reprojectionFocalDepth = try container.decodeIfPresent(Float.self, forKey: .reprojectionFocalDepth) ?? self.reprojectionFocalDepth
     }
 }
 

@@ -344,6 +344,20 @@ struct Entry: View {
                             saveAction()
                         }
 
+                        HStack {
+                            Text("Reprojection focal depth")
+                            Picker("Reprojection focal depth", selection: $gStore.settings.reprojectionFocalDepth) {
+                                Text("Default").tag(Float(0.0))
+                                Text("1.5 m").tag(Float(1.5))
+                                Text("2.5 m").tag(Float(2.5))
+                                Text("4 m").tag(Float(4.0))
+                                Text("8 m").tag(Float(8.0))
+                            }
+                            .onChange(of: gStore.settings.reprojectionFocalDepth) {
+                                saveAction()
+                            }
+                        }
+                        
                         Toggle(isOn: $gStore.settings.logPoseTiming) {
                             Text("Log pose timing")
                             Text("Writes a pose/timestamp summary to the streamer log every second, and per-frame rows to pose_timing.csv.")

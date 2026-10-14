@@ -598,6 +598,17 @@ class Renderer {
             let viewMatrix = (simdDeviceAnchor * viewTransforms[viewIndex]).inverse
             let viewMatrixFrame = (framePoseNoTranslation.inverse * simdDeviceAnchorNoTranslation * viewTransforms[viewIndex]).inverse
             let viewMatrixFrameRk = (framePoseNoTranslation.inverse * simdDeviceAnchorNoTranslation).inverse // RealityKit implicitly applies the view transforms when we draw the quad entity
+            var viewMatrixFrameForUniforms = viewMatrixFrame
+            let focalDepth = settings.reprojectionFocalDepth
+            if focalDepth > 0.0 && !isRealityKit {
+                // Reproject onto a plane at `focalDepth` instead of at infinity, so the head's translation between the
+                // frame's pose and the display pose is corrected for content at that depth. The quad is drawn at z = -500
+                // in the frame's eye space; the scale brings it to the focal depth with the same angular size.
+                let eyeFromFrameEye = (simdDeviceAnchor * viewTransforms[viewIndex]).inverse * (framePose * viewTransforms[viewIndex])
+                let s = focalDepth / 500.0
+                let scale = simd_float4x4(diagonal: simd_float4(s, s, s, 1.0))
+                viewMatrixFrameForUniforms = eyeFromFrameEye * scale
+            }
             var projection = matrix_identity_float4x4
             if #available(visionOS 2.0, *), drawable != nil {
 #if XCODE_BETA_16
@@ -623,7 +634,7 @@ class Renderer {
                           reverseZ: true)
                 projection = matrix_float4x4(p)
             }
-            return Uniforms(projectionMatrix: projection, modelViewMatrixFrame: isRealityKit ? viewMatrixFrameRk : viewMatrixFrame, modelViewMatrix: viewMatrix, tangents: sentTangents)
+            return Uniforms(projectionMatrix: projection, modelViewMatrixFrame: isRealityKit ? viewMatrixFrameRk : viewMatrixFrameForUniforms, modelViewMatrix: viewMatrix, tangents: sentTangents)
         }
         
         self.uniforms[0].uniforms.0 = uniforms(forViewIndex: 0)
