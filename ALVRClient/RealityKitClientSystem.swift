@@ -1628,6 +1628,11 @@ class RealityKitClientSystemCorrectlyAssociated : System {
             
             let sentAnchor = WorldTracker.shared.sendTracking(viewTransforms: viewTransforms, viewFovs: viewFovs, targetTimestamp: targetTimestamp, reportedTargetTimestamp: reportedTargetTimestamp, anchorTimestamp: anchorTimestamp, delay: 0.0)
             
+            // sentAnchor is the freshest head pose we have for this vsync; the frame's own pose is what the host rendered for.
+            if ALVRClientApp.gStore.settings.logPoseTiming, let queuedFrame, renderingStreaming, let framePose = framePreviouslyPredictedPose {
+                PoseTimingLog.shared.recordDisplay(timestampNs: queuedFrame.timestamp, presentTimeS: vsyncTime, framePose: framePose, anchorPose: sentAnchor)
+            }
+            
             // Make overlay look correct
             if renderer.fadeInOverlayAlpha > 0.0 || deviceAnchor == matrix_identity_float4x4 {
                 deviceAnchor = sentAnchor
