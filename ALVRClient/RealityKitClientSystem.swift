@@ -1302,8 +1302,14 @@ class RealityKitClientSystemCorrectlyAssociated : System {
         let vrrBuffer = frame.vrrBuffer
         
         // HACK: keep the depths separate to avoid z fighting
-        let rk_panel_depth_L = rk_panel_depth
-        let rk_panel_depth_R = rk_panel_depth - 10.0
+        var rk_panel_depth_L = rk_panel_depth
+        var rk_panel_depth_R = rk_panel_depth - 10.0
+        let focalDepthOverride = ALVRClientApp.gStore.settings.reprojectionFocalDepth
+        if focalDepthOverride > 0.0 {
+            // Same 70/80 ratio as the default so the two eye planes still don't z-fight.
+            rk_panel_depth_L = focalDepthOverride
+            rk_panel_depth_R = focalDepthOverride * 0.875
+        }
         
         // TL;DR  each eye has asymmetric render tangents, but we can't scale each half individually so we
         // have to do some math to move the center of the plane where it should be.
@@ -1627,6 +1633,11 @@ class RealityKitClientSystemCorrectlyAssociated : System {
             }
             
             let sentAnchor = WorldTracker.shared.sendTracking(viewTransforms: viewTransforms, viewFovs: viewFovs, targetTimestamp: targetTimestamp, reportedTargetTimestamp: reportedTargetTimestamp, anchorTimestamp: anchorTimestamp, delay: 0.0)
+            
+            // sentAnchor is the freshest head pose we have for this vsync; the frame's own pose is what the host rendered for.
+            if ALVRClientApp.gStore.settings.logPoseTiming, let queuedFrame, renderingStreaming, let framePose = framePreviouslyPredictedPose {
+                PoseTimingLog.shared.recordDisplay(timestampNs: queuedFrame.timestamp, presentTimeS: vsyncTime, framePose: framePose, anchorPose: sentAnchor)
+            }
             
             // Make overlay look correct
             if renderer.fadeInOverlayAlpha > 0.0 || deviceAnchor == matrix_identity_float4x4 {
