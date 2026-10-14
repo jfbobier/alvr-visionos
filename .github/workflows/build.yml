@@ -1,8 +1,13 @@
 name: Build visionOS client
 
-# Compile check only: no signing, no device. Builds the Rust client core, repacks it
-# as an xcframework (same steps as build_and_repack.sh) and builds the app with the
-# visionOS SDK.
+# Compile check + unsigned sideload builds (no signing, no entitlements, no ReplayKit extension).
+# Rust client core -> xcframework (same steps as build_and_repack.sh) -> xcodebuild with the visionOS SDK.
+#
+# Variants (all Release):
+#   telemetry-rk     ALVR_TELEMETRY, VisionALVR defaults, RealityKit renderer by default
+#   normal-rk        no telemetry code at all, same defaults
+#   telemetry-metal  ALVR_TELEMETRY, VisionALVR defaults, Metal (Compositor Services) renderer by default
+# The defaults only seed a fresh settings file (pure-green chroma key on, renderer choice).
 
 on:
   push:
@@ -16,15 +21,25 @@ concurrency:
 
 jobs:
   build:
-    name: Xcode ${{ matrix.name }}
-    runs-on: ${{ matrix.runner }}
+    name: ${{ matrix.variant }}
+    runs-on: xcode-27
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: 27 (visionOS 27 SDK)
-            runner: xcode-27
+          - variant: telemetry-rk
+            flags: ALVR_TELEMETRY ALVR_VISIONALVR_DEFAULTS ALVR_DEFAULT_RENDERER_RK
+            bundle_id: alvr.client.vatelrk
+            display_name: ALVR Tel RK
+          - variant: normal-rk
+            flags: ALVR_VISIONALVR_DEFAULTS ALVR_DEFAULT_RENDERER_RK
+            bundle_id: alvr.client.vanormal
+            display_name: ALVR Normal
+          - variant: telemetry-metal
+            flags: ALVR_TELEMETRY ALVR_VISIONALVR_DEFAULTS
+            bundle_id: alvr.client.vatelmetal
+            display_name: ALVR Tel Metal
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,7 +50,6 @@ jobs:
           xcodebuild -version
           xcodebuild -showsdks | grep -i xros || true
           rustc --version
-          cargo --version
 
       - name: Rust target and cbindgen
         run: |
@@ -65,34 +79,52 @@ jobs:
       - name: Metal toolchain
         run: xcodebuild -downloadComponent MetalToolchain
 
-      - name: Build app
+      - name: Build app (Release, unsigned, no entitlements)
         run: |
           set -o pipefail
-          xcodebuild -project ALVRClient.xcodeproj -scheme ALVRClient -configuration Debug \
+          xcodebuild -project ALVRClient.xcodeproj -scheme ALVRClient -configuration Release \
             -destination 'generic/platform=visionOS' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS="XCODE_BETA_16 XCODE_BETA_26 XCODE_BETA_27 ${{ matrix.flags }}" \
             build 2>&1 | tee xcodebuild.log
 
       - name: Package unsigned .ipa
         run: |
-          APP=build/Build/Products/Debug-xros/ALVRClient.app
+          APP=build/Build/Products/Release-xros/ALVRClient.app
           test -d "$APP"
+          # The ReplayKit eye-broadcast extension needs an app group (a paid-account capability): not shipped here.
+          rm -rf "$APP/PlugIns"
+          PB=/usr/libexec/PlistBuddy
+          $PB -c "Set :CFBundleIdentifier ${{ matrix.bundle_id }}" "$APP/Info.plist"
+          $PB -c "Set :CFBundleDisplayName '${{ matrix.display_name }}'" "$APP/Info.plist" 2>/dev/null \
+            || $PB -c "Add :CFBundleDisplayName string '${{ matrix.display_name }}'" "$APP/Info.plist"
+          # The restricted/paid-account entitlements must appear nowhere in the bundle.
+          if grep -rqa "low-latency-streaming\|application-groups" "$APP"; then
+            echo "entitlement string found in the app bundle"; grep -rla "low-latency-streaming\|application-groups" "$APP"; exit 1
+          fi
+          if [ -d "$APP/PlugIns" ]; then echo "extension still embedded"; exit 1; fi
+          # Telemetry code must be absent from the normal variant.
+          if [ "${{ matrix.variant }}" = "normal-rk" ] && grep -rqa "\[pt\] " "$APP"; then
+            echo "telemetry strings found in the normal build"; exit 1
+          fi
           rm -rf ipa && mkdir -p ipa/Payload
           cp -R "$APP" ipa/Payload/
-          (cd ipa && zip -qry ../ALVRClient-unsigned.ipa Payload)
-          ls -l ALVRClient-unsigned.ipa
+          (cd ipa && zip -qry "../ALVR-${{ matrix.variant }}-unsigned.ipa" Payload)
+          ls -l ALVR-*.ipa
+          shasum -a 256 ALVR-*.ipa
 
       - name: Upload unsigned .ipa
         uses: actions/upload-artifact@v4
         with:
-          name: ALVRClient-unsigned-ipa
-          path: ALVRClient-unsigned.ipa
-          retention-days: 14
+          name: ALVR-${{ matrix.variant }}-unsigned-ipa
+          path: ALVR-${{ matrix.variant }}-unsigned.ipa
+          retention-days: 30
 
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xcodebuild-${{ matrix.runner }}
+          name: xcodebuild-${{ matrix.variant }}
           path: xcodebuild.log
           if-no-files-found: ignore

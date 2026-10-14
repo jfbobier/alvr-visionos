@@ -446,6 +446,9 @@ class EventHandler: ObservableObject {
         }
         
         let timestamp = frameData.timestamp_ns
+#if ALVR_TELEMETRY
+        Telemetry.shared.recordReceive(timestampNs: timestamp)
+#endif
         if ALVRClientApp.gStore.settings.showPerformanceHud {
             PerformanceTracker.shared.recordReceive(timestampNs: timestamp)
         }
@@ -513,6 +516,9 @@ class EventHandler: ObservableObject {
                     //print("Frame not decoded")
                     return
                 }
+#if ALVR_TELEMETRY
+                Telemetry.shared.recordDecoded(timestampNs: timestamp)
+#endif
                 if ALVRClientApp.gStore.settings.showPerformanceHud {
                     PerformanceTracker.shared.recordDecodeEnd(timestampNs: timestamp)
                 }

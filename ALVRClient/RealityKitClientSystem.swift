@@ -1304,7 +1304,10 @@ class RealityKitClientSystemCorrectlyAssociated : System {
         // HACK: keep the depths separate to avoid z fighting
         var rk_panel_depth_L = rk_panel_depth
         var rk_panel_depth_R = rk_panel_depth - 10.0
-        let focalDepthOverride = ALVRClientApp.gStore.settings.reprojectionFocalDepth
+        var focalDepthOverride = ALVRClientApp.gStore.settings.reprojectionFocalDepth
+#if ALVR_TELEMETRY
+        focalDepthOverride = TelemetryConditions.focalDepth ?? focalDepthOverride
+#endif
         if focalDepthOverride > 0.0 {
             // Same 70/80 ratio as the default so the two eye planes still don't z-fight.
             rk_panel_depth_L = focalDepthOverride
@@ -1346,6 +1349,9 @@ class RealityKitClientSystemCorrectlyAssociated : System {
         }
 
         commandBuffer.addCompletedHandler { (_ commandBuffer)-> Swift.Void in
+#if ALVR_TELEMETRY
+            Telemetry.shared.recordGpu(ms: (commandBuffer.gpuEndTime - commandBuffer.gpuStartTime) * 1000.0)
+#endif
             if EventHandler.shared.alvrInitialized && EventHandler.shared.lastSubmittedTimestamp != timestamp {
                 vsyncTime = self.visionProVsyncPrediction.nextFrameTime
                 
@@ -1494,6 +1500,12 @@ class RealityKitClientSystemCorrectlyAssociated : System {
             }
             
             objc_sync_enter(EventHandler.shared.frameQueueLock)
+#if ALVR_TELEMETRY
+            if TelemetryConditions.pickNewest && EventHandler.shared.frameQueue.count > 1 {
+                // Skip the older waiting frames and show the newest one.
+                EventHandler.shared.frameQueue.removeFirst(EventHandler.shared.frameQueue.count - 1)
+            }
+#endif
             queuedFrame = EventHandler.shared.frameQueue.count > 0 ? EventHandler.shared.frameQueue.removeFirst() : nil
             objc_sync_exit(EventHandler.shared.frameQueueLock)
             if queuedFrame != nil {
@@ -1635,9 +1647,11 @@ class RealityKitClientSystemCorrectlyAssociated : System {
             let sentAnchor = WorldTracker.shared.sendTracking(viewTransforms: viewTransforms, viewFovs: viewFovs, targetTimestamp: targetTimestamp, reportedTargetTimestamp: reportedTargetTimestamp, anchorTimestamp: anchorTimestamp, delay: 0.0)
             
             // sentAnchor is the freshest head pose we have for this vsync; the frame's own pose is what the host rendered for.
-            if ALVRClientApp.gStore.settings.logPoseTiming, let queuedFrame, renderingStreaming, let framePose = framePreviouslyPredictedPose {
-                PoseTimingLog.shared.recordDisplay(timestampNs: queuedFrame.timestamp, presentTimeS: vsyncTime, framePose: framePose, anchorPose: sentAnchor)
+#if ALVR_TELEMETRY
+            if let queuedFrame, renderingStreaming, let framePose = framePreviouslyPredictedPose {
+                Telemetry.shared.recordDisplay(timestampNs: queuedFrame.timestamp, presentTimeS: vsyncTime, framePose: framePose, anchorPose: sentAnchor, renderer: "rk")
             }
+#endif
             
             // Make overlay look correct
             if renderer.fadeInOverlayAlpha > 0.0 || deviceAnchor == matrix_identity_float4x4 {

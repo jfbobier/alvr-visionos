@@ -599,7 +599,10 @@ class Renderer {
             let viewMatrixFrame = (framePoseNoTranslation.inverse * simdDeviceAnchorNoTranslation * viewTransforms[viewIndex]).inverse
             let viewMatrixFrameRk = (framePoseNoTranslation.inverse * simdDeviceAnchorNoTranslation).inverse // RealityKit implicitly applies the view transforms when we draw the quad entity
             var viewMatrixFrameForUniforms = viewMatrixFrame
-            let focalDepth = settings.reprojectionFocalDepth
+            var focalDepth = settings.reprojectionFocalDepth
+#if ALVR_TELEMETRY
+            focalDepth = TelemetryConditions.focalDepth ?? focalDepth
+#endif
             if focalDepth > 0.0 && !isRealityKit {
                 // Reproject onto a plane at `focalDepth` instead of at infinity, so the head's translation between the
                 // frame's pose and the display pose is corrected for content at that depth. The quad is drawn at z = -500
@@ -717,6 +720,12 @@ class Renderer {
             }
             
             objc_sync_enter(EventHandler.shared.frameQueueLock)
+#if ALVR_TELEMETRY
+            if TelemetryConditions.pickNewest && EventHandler.shared.frameQueue.count > 1 {
+                // Skip the older waiting frames and show the newest one.
+                EventHandler.shared.frameQueue.removeFirst(EventHandler.shared.frameQueue.count - 1)
+            }
+#endif
             queuedFrame = EventHandler.shared.frameQueue.count > 0 ? EventHandler.shared.frameQueue.removeFirst() : nil
             objc_sync_exit(EventHandler.shared.frameQueueLock)
             if queuedFrame != nil {
@@ -946,6 +955,9 @@ class Renderer {
 
                 EventHandler.shared.lastSubmittedTimestamp = queuedFrame!.timestamp
             }
+#if ALVR_TELEMETRY
+            Telemetry.shared.recordGpu(ms: (commandBuffer.gpuEndTime - commandBuffer.gpuStartTime) * 1000.0)
+#endif
             if ALVRClientApp.gStore.settings.showPerformanceHud, let ts = queuedFrame?.timestamp {
                 PerformanceTracker.shared.recordSubmit(timestampNs: ts)
                 PerformanceTracker.shared.recordGpu(timestampNs: ts, gpuStartTime: commandBuffer.gpuStartTime, gpuEndTime: commandBuffer.gpuEndTime)
@@ -1007,7 +1019,9 @@ class Renderer {
            let queuedFrame {
             PerformanceTracker.shared.recordCompositorStart(timestampNs: queuedFrame.timestamp)
         }
+#if ALVR_TELEMETRY
         var loggedPoseTiming = false
+#endif
         for drawable in drawables {
             drawable.deviceAnchor = deviceAnchor
             
@@ -1022,10 +1036,12 @@ class Renderer {
             let simdDeviceAnchor = WorldTracker.shared.floorCorrectionTransform.asFloat4x4() * (deviceAnchor?.originFromAnchorTransform ?? matrix_identity_float4x4)
             let framePose = framePreviouslyPredictedPose ?? matrix_identity_float4x4
             
-            if ALVRClientApp.gStore.settings.logPoseTiming, !loggedPoseTiming, let queuedFrame, renderingStreaming {
+#if ALVR_TELEMETRY
+            if !loggedPoseTiming, let queuedFrame, renderingStreaming {
                 loggedPoseTiming = true
-                PoseTimingLog.shared.recordDisplay(timestampNs: queuedFrame.timestamp, presentTimeS: vsyncTime, framePose: framePose, anchorPose: simdDeviceAnchor)
+                Telemetry.shared.recordDisplay(timestampNs: queuedFrame.timestamp, presentTimeS: vsyncTime, framePose: framePose, anchorPose: simdDeviceAnchor, renderer: "metal")
             }
+#endif
             
 #if DEBUG_ALVR_TRACKING
             WorldTracker.shared.lockDebuggables()

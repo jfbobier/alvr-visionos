@@ -13,13 +13,28 @@ struct GlobalSettings: Codable {
     var disablePersistentSystemOverlays: Bool = true
     var enableDoubleTapForHands: Bool = false
     var streamFPS: String = "Default"
+#if ALVR_DEFAULT_RENDERER_RK
+    var realityKitRenderer: Bool = true
+#else
     var realityKitRenderer: Bool = false
+#endif
+#if ALVR_VISIONALVR_DEFAULTS
+    var chromaKeyEnabled: Bool = true
+#else
     var chromaKeyEnabled: Bool = false
+#endif
     var chromaKeyDistRangeMin: Float = 0.35
     var chromaKeyDistRangeMax: Float = 0.7
+#if ALVR_VISIONALVR_DEFAULTS
+    // Pure green, what the VisionALVR streamer fills the background with.
+    var chromaKeyColorR: Float = 0.0
+    var chromaKeyColorG: Float = 1.0
+    var chromaKeyColorB: Float = 0.0
+#else
     var chromaKeyColorR: Float = 16.0 / 255.0
     var chromaKeyColorG: Float = 124.0 / 255.0
     var chromaKeyColorB: Float = 16.0 / 255.0
+#endif
     var dismissWindowOnEnter: Bool = true
     var emulatedPinchInteractions: Bool = false
     var fovRenderScale: Float = 1.0
@@ -32,7 +47,6 @@ struct GlobalSettings: Codable {
     var chaperoneDistanceCm: Int = 0
     var showPerformanceHud: Bool = false
     var claimControllerHomeButton: Bool = true
-    var logPoseTiming: Bool = false
     /// Distance (meters) of the focal plane the stream is reprojected onto. 0 keeps the legacy behavior (effectively
     /// infinite: rotation-only reprojection, no head translation correction).
     var reprojectionFocalDepth: Float = 0.0
@@ -66,7 +80,6 @@ struct GlobalSettings: Codable {
         self.chaperoneDistanceCm = try container.decodeIfPresent(Int.self, forKey: .chaperoneDistanceCm) ?? self.chaperoneDistanceCm
         self.showPerformanceHud = try container.decodeIfPresent(Bool.self, forKey: .showPerformanceHud) ?? self.showPerformanceHud
         self.claimControllerHomeButton = try container.decodeIfPresent(Bool.self, forKey: .claimControllerHomeButton) ?? self.claimControllerHomeButton
-        self.logPoseTiming = try container.decodeIfPresent(Bool.self, forKey: .logPoseTiming) ?? self.logPoseTiming
         self.reprojectionFocalDepth = try container.decodeIfPresent(Float.self, forKey: .reprojectionFocalDepth) ?? self.reprojectionFocalDepth
     }
 }

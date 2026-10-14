@@ -352,6 +352,7 @@ struct Entry: View {
                             saveAction()
                         }
 
+#if ALVR_TELEMETRY
                         HStack {
                             Text("Reprojection focal depth")
                             Picker("Reprojection focal depth", selection: $gStore.settings.reprojectionFocalDepth) {
@@ -366,15 +367,9 @@ struct Entry: View {
                             }
                         }
                         
-                        Toggle(isOn: $gStore.settings.logPoseTiming) {
-                            Text("Log pose timing")
-                            Text("Writes a pose/timestamp summary to the streamer log every second, and per-frame rows to pose_timing.csv.")
-                                .font(.system(size: 10))
-                        }
-                        .toggleStyle(.switch)
-                        .onChange(of: gStore.settings.logPoseTiming) {
-                            saveAction()
-                        }
+                        Text("Telemetry build: a pose/timing A/B schedule starts with the stream and takes about 17 minutes; the focal depth and frame pick policy change by themselves.")
+                            .font(.system(size: 10))
+#endif
 
                         Button {
                             openWindow(id: "InputDebug")

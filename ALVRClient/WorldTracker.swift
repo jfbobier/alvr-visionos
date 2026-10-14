@@ -817,9 +817,9 @@ class WorldTracker {
                 for await update in accessories.anchorUpdates {
                     switch update.event {
                     case .added, .updated:
-                        if ALVRClientApp.gStore.settings.logPoseTiming {
-                            PoseTimingLog.shared.recordAccessoryUpdate(isLeft: update.anchor.accessory.inherentChirality == .left, anchorTimestamp: update.anchor.timestamp)
-                        }
+#if ALVR_TELEMETRY
+                        Telemetry.shared.recordAccessoryUpdate(isLeft: update.anchor.accessory.inherentChirality == .left, anchorTimestamp: update.anchor.timestamp)
+#endif
                         if update.anchor.accessory.inherentChirality == .left {
                             objc_sync_enter(controllerLock)
                             leftControllerAnchor = update.anchor
@@ -3347,10 +3347,10 @@ class WorldTracker {
         let headMotion = AlvrDeviceMotion(device_id: WorldTracker.deviceIdHead, pose: headPose, linear_velocity: headLinVel, angular_velocity: headAngVel)
         trackingMotions.append(headMotion)
 
-        if ALVRClientApp.gStore.settings.logPoseTiming {
-            PoseTimingLog.shared.recordSend(reportedNs: reportedTargetTimestampNS, requestedTime: targetTimestamp, usedTime: targetTimestampWalkedBack,
-                                            anchorTime: deviceAnchor.timestamp, usedFallback: usedFallbackAnchor, pose: appleOriginFromAnchor)
-        }
+#if ALVR_TELEMETRY
+        Telemetry.shared.recordSend(reportedNs: reportedTargetTimestampNS, requestedTime: targetTimestamp, usedTime: targetTimestampWalkedBack,
+                                    anchorTime: deviceAnchor.timestamp, usedFallback: usedFallbackAnchor, pose: appleOriginFromAnchor)
+#endif
         
         // selection ray tests, replaces left forearm
 #if false
