@@ -69,9 +69,25 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild -project ALVRClient.xcodeproj -scheme ALVRClient -configuration Debug \
-            -destination 'generic/platform=visionOS' \
+            -destination 'generic/platform=visionOS' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             build 2>&1 | tee xcodebuild.log
+
+      - name: Package unsigned .ipa
+        run: |
+          APP=build/Build/Products/Debug-xros/ALVRClient.app
+          test -d "$APP"
+          rm -rf ipa && mkdir -p ipa/Payload
+          cp -R "$APP" ipa/Payload/
+          (cd ipa && zip -qry ../ALVRClient-unsigned.ipa Payload)
+          ls -l ALVRClient-unsigned.ipa
+
+      - name: Upload unsigned .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALVRClient-unsigned-ipa
+          path: ALVRClient-unsigned.ipa
+          retention-days: 14
 
       - name: Upload build log
         if: always()
