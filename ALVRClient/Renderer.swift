@@ -905,7 +905,7 @@ class Renderer {
                 }
             }
 
-            WorldTracker.shared.sendTracking(viewTransforms: viewTransforms, viewFovs: viewFovs, targetTimestamp: targetTimestamp, reportedTargetTimestamp: reportedTargetTimestamp, anchorTimestamp: anchorTimestamp, delay: 0.0)
+            WorldTracker.shared.sendTracking(viewTransforms: viewTransforms, viewFovs: viewFovs, targetTimestamp: targetTimestamp, reportedTargetTimestamp: reportedTargetTimestamp, anchorTimestamp: anchorTimestamp, delay: 0.0, headLookahead: Double(ALVRClientApp.gStore.settings.headLookaheadMs) / 1000.0)
         }
         else {
 #if DEBUG_ALVR_TRACKING

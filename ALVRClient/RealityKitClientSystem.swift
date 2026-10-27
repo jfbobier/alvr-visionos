@@ -1626,7 +1626,7 @@ class RealityKitClientSystemCorrectlyAssociated : System {
                 anchorTimestamp = vsyncTime - visionProVsyncPrediction.vsyncLatency
             }
             
-            let sentAnchor = WorldTracker.shared.sendTracking(viewTransforms: viewTransforms, viewFovs: viewFovs, targetTimestamp: targetTimestamp, reportedTargetTimestamp: reportedTargetTimestamp, anchorTimestamp: anchorTimestamp, delay: 0.0)
+            let sentAnchor = WorldTracker.shared.sendTracking(viewTransforms: viewTransforms, viewFovs: viewFovs, targetTimestamp: targetTimestamp, reportedTargetTimestamp: reportedTargetTimestamp, anchorTimestamp: anchorTimestamp, delay: 0.0, headLookahead: Double(ALVRClientApp.gStore.settings.headLookaheadMs) / 1000.0)
             
             // Make overlay look correct
             if renderer.fadeInOverlayAlpha > 0.0 || deviceAnchor == matrix_identity_float4x4 {

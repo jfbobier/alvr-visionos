@@ -58,7 +58,17 @@ private struct MetricRow: View {
 }
 
 private func streamFpsCap(from value: String) -> Double {
-    return value == "Default" ? 90.0 : (Double(value) ?? 90.0)
+    return value == "Default" ? Double(defaultRefreshRate) : (Double(value) ?? Double(defaultRefreshRate))
+}
+
+/// The panel's refresh rate varies per session (90-100 Hz) and is not the requested stream rate, so the target is what
+/// the display actually achieves: frames land on vsync, so the 10th percentile interval (robust to missed frames) is
+/// one display period. Falls back to the requested rate until enough frames were seen.
+private func displayFpsCap(frameTimes: [Double], requested: Double) -> Double {
+    let valid = frameTimes.filter { $0 > 3.0 && $0 < 50.0 }.sorted()
+    guard valid.count >= 20 else { return requested }
+    let period = valid[valid.count / 10]
+    return min(requested, 1000.0 / period)
 }
 
 private struct PerformanceOverlayContent: View {
@@ -66,6 +76,7 @@ private struct PerformanceOverlayContent: View {
     let streamFpsCap: Double
 
     var body: some View {
+        let streamFpsCap = displayFpsCap(frameTimes: snapshot.frameTimes, requested: self.streamFpsCap)
         let latest = snapshot.latest
         let frameStats = snapshot.stats.frame
         let decodeStats = snapshot.stats.decode
@@ -117,25 +128,25 @@ private struct PerformanceOverlayContent: View {
             .foregroundStyle(primaryText)
             
             VStack(alignment: .leading, spacing: 6) {
-                GraphView(samples: snapshot.frameTimes, lineColor: .green, referenceLines: [11.11])
+                GraphView(samples: snapshot.frameTimes, lineColor: .green, referenceLines: [frameTargetMs])
                     .frame(height: 32)
                 MetricRow(label: "frame avg", value: String(format: "%.2fms", frameStats.avg))
                     .font(.system(size: 10, weight: .regular, design: .monospaced))
                     .foregroundStyle(secondaryText)
 
-                GraphView(samples: snapshot.decodeTimes, lineColor: .yellow, referenceLines: [11.11])
+                GraphView(samples: snapshot.decodeTimes, lineColor: .yellow, referenceLines: [frameTargetMs])
                     .frame(height: 32)
                 MetricRow(label: "decode", value: String(format: "%.2fms", decodeStats.avg))
                     .font(.system(size: 10, weight: .regular, design: .monospaced))
                     .foregroundStyle(secondaryText)
 
-                GraphView(samples: snapshot.renderTimes, lineColor: .orange, referenceLines: [11.11])
+                GraphView(samples: snapshot.renderTimes, lineColor: .orange, referenceLines: [frameTargetMs])
                     .frame(height: 32)
                 MetricRow(label: "render", value: String(format: "%.2fms", renderStats.avg))
                     .font(.system(size: 10, weight: .regular, design: .monospaced))
                     .foregroundStyle(secondaryText)
 
-                GraphView(samples: snapshot.gpuTimes, lineColor: .pink, referenceLines: [11.11])
+                GraphView(samples: snapshot.gpuTimes, lineColor: .pink, referenceLines: [frameTargetMs])
                     .frame(height: 32)
                 MetricRow(label: "gpu", value: String(format: "%.2fms", gpuStats.avg))
                     .font(.system(size: 10, weight: .regular, design: .monospaced))

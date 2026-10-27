@@ -2496,8 +2496,10 @@ class WorldTracker {
     // TODO: figure out how stable Apple's predictions are into the future
     // targetTimestamp: The timestamp of the pose we will send to ALVR--capped by how far we can predict forward.
     // realTargetTimestamp: The timestamp we tell ALVR, which always includes the full round-trip prediction.
-    func sendTracking(viewTransforms: [simd_float4x4], viewFovs: [AlvrFov], targetTimestamp: Double, reportedTargetTimestamp: Double, anchorTimestamp: Double, delay: Double) -> simd_float4x4 {
-        var targetTimestampWalkedBack = targetTimestamp
+    func sendTracking(viewTransforms: [simd_float4x4], viewFovs: [AlvrFov], targetTimestamp: Double, reportedTargetTimestamp: Double, anchorTimestamp: Double, delay: Double, headLookahead: Double = 0.0) -> simd_float4x4 {
+        // The look-ahead only moves the head query; controllers keep targetTimestamp, and the stamp the streamer matches
+        // frames by (reportedTargetTimestamp) is unchanged. The walk-back below handles Apple refusing far-future queries.
+        var targetTimestampWalkedBack = targetTimestamp + headLookahead
         let controllerPredictionTimestamp = targetTimestamp
         var deviceAnchor:DeviceAnchor? = nil
         

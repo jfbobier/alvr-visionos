@@ -32,6 +32,8 @@ struct GlobalSettings: Codable {
     var chaperoneDistanceCm: Int = 0
     var showPerformanceHud: Bool = false
     var claimControllerHomeButton: Bool = true
+    /// Milliseconds the head pose sent to the streamer is predicted past the display time of the current frame. 0 = off.
+    var headLookaheadMs: Int = 0
     
     init() {}
     
@@ -62,6 +64,7 @@ struct GlobalSettings: Codable {
         self.chaperoneDistanceCm = try container.decodeIfPresent(Int.self, forKey: .chaperoneDistanceCm) ?? self.chaperoneDistanceCm
         self.showPerformanceHud = try container.decodeIfPresent(Bool.self, forKey: .showPerformanceHud) ?? self.showPerformanceHud
         self.claimControllerHomeButton = try container.decodeIfPresent(Bool.self, forKey: .claimControllerHomeButton) ?? self.claimControllerHomeButton
+        self.headLookaheadMs = try container.decodeIfPresent(Int.self, forKey: .headLookaheadMs) ?? self.headLookaheadMs
     }
 }
 

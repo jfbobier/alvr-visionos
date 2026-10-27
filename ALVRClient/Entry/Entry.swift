@@ -295,6 +295,23 @@ struct Entry: View {
                             .font(.system(size: 10))
                             .frame(maxWidth: .infinity, alignment: .leading)
 
+                        HStack {
+                            Text("Head prediction ahead")
+                            Picker("Head prediction ahead", selection: $gStore.settings.headLookaheadMs) {
+                                Text("Off").tag(0)
+                                Text("10 ms").tag(10)
+                                Text("20 ms").tag(20)
+                                Text("30 ms").tag(30)
+                            }
+                            .pickerStyle(.menu)
+                            .onChange(of: gStore.settings.headLookaheadMs) {
+                                saveAction()
+                            }
+                        }
+                        Text("Experimental: sends the head pose predicted this far past the display time. Independent of the display's refresh rate.")
+                            .font(.system(size: 10))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
                         Toggle(isOn: $gStore.settings.targetHandsAtRoundtripLatency) {
                             Text("Target hand prediction at round-trip latency (may cause jittering)")
                         }
