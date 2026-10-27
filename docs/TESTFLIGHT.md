@@ -48,6 +48,12 @@ To get new changes later, use **Sync fork** on the fork's page.
    **internal** testers (people on your team, up to 100) get the build at once; **external** testers need a short
    Beta App Review first.
 
+## Check the build first (optional, no secrets)
+
+**Run workflow** with **Only check that the Release archive builds** ticked: it builds the same Release archive without
+signing and uploads nothing. It confirms the project compiles in Release and prints the bundle ID, name and version.
+(It passes on the current branch.)
+
 ## If something fails
 
 - **Signing complains about `com.apple.developer.low-latency-streaming`** (or "profile doesn't include entitlement"):
