@@ -48,6 +48,22 @@ To get new changes later, use **Sync fork** on the fork's page.
    **internal** testers (people on your team, up to 100) get the build at once; **external** testers need a short
    Beta App Review first.
 
+## Alternative: from a Mac with Xcode (no API key, no GitHub setup)
+
+Often the easiest first upload, because Xcode signs with the Apple ID you are signed in with and shows every error in
+place. You need Xcode 27 and a one-time Rust setup:
+
+1. `brew install rustup cbindgen`, then `rustup-init -y` and `rustup target add aarch64-apple-ios`.
+2. `git clone --recursive https://github.com/jfbobier/alvr-visionos` and `cd alvr-visionos`.
+3. `sh build_and_repack.sh` (builds the client core and the xcframework; the same steps as the workflow).
+4. `open ALVRClient.xcodeproj`. In the **ALVRClient** target > **Signing & Capabilities**: your Team, your bundle ID
+   (the app record from step 2 above must exist). Remove **Low Latency Streaming** there if Xcode says your account
+   cannot have it.
+5. Destination **Any visionOS Device**, then **Product > Archive**, then **Distribute App > App Store Connect >
+   Upload**.
+
+Use the workflow for the following builds, or keep using Xcode: both produce the same app.
+
 ## Check the build first (optional, no secrets)
 
 **Run workflow** with **Only check that the Release archive builds** ticked: it builds the same Release archive without
