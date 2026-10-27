@@ -124,6 +124,51 @@ else is affected.
 
 # Part 2: GitHub
 
+## Fastest way (Windows): let a script do it
+
+This replaces steps A to E below with one script that asks for the values from your worksheet, checks each one, makes
+your copy of the project, stores the secrets and starts the builds. It only ever talks to **your own** GitHub account and
+never shows your key. (The manual steps stay below as a fallback.)
+
+1. Press the **Windows key**, type **PowerShell**, and open **Windows PowerShell**.
+2. Install the GitHub tool by pasting this line and pressing Enter (answer **Y** if asked):
+
+   ```
+   winget install --id GitHub.cli -e
+   ```
+
+   (If Windows says `winget` is unknown, install **App Installer** from the Microsoft Store:
+   https://apps.microsoft.com/detail/9nblggh4nns1 , or download GitHub CLI from https://cli.github.com .)
+3. **Close the window and open a new PowerShell** (so it finds the new tool). Check it with `gh --version`.
+4. Download the script by pasting this one line:
+
+   ```
+   Invoke-WebRequest https://raw.githubusercontent.com/jfbobier/alvr-visionos/airframexr-client/scripts/testflight-setup.ps1 -OutFile testflight-setup.ps1
+   ```
+
+5. Run it (the file is short and readable if you want to look at it first: open it in Notepad):
+
+   ```
+   powershell -ExecutionPolicy Bypass -File .\testflight-setup.ps1
+   ```
+
+6. Follow the questions. What to expect:
+   - If you are not signed in to GitHub, it shows an 8-character code and opens your browser: sign in, type the code,
+     click **Authorize**, then come back to the window.
+   - It asks for the `.p8` file (drag the file into the window and press Enter), then the Key ID (it suggests the one
+     in the file name), the Issuer ID, the Team ID and the Bundle ID. A wrong-looking value is refused and asked again.
+   - It shows a summary: read it, then answer **Y** to store.
+   - It offers the **test build** (15 minutes, no Apple involved: say **Y**), then the **upload to TestFlight**.
+7. When it says `The build reached Apple`, go on to Part 3. To build again later, just open
+   `https://github.com/<you>/alvr-visionos/actions/workflows/testflight.yml` and click **Run workflow**.
+
+*Want to see what it would do first?* Add `-DryRun` at the end of the command in step 5: nothing is changed.
+
+If the script stops with a red **STOP** message, read it: it says what to fix. Run it again afterwards: it skips what is
+already done.
+
+## The manual way (the same thing by hand)
+
 GitHub is where the build runs and where the secrets are kept. You need your **own copy** of the project on your own
 GitHub account, called a **fork**. (Only the owner of a project can store secrets in it, and the key should stay yours
 anyway.) No programming is involved. `<you>` below is your GitHub user name: write it in the worksheet.
