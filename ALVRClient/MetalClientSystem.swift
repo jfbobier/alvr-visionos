@@ -1,9 +1,7 @@
 //
 //  MetalClientSystem.swift
 //
-// MetalClientSystem generally matches the Renderer abstraction
-// that RealityKitClientSystem requires, to allow as much code
-// shared for both input and rendering as possible.
+// MetalClientSystem owns the CompositorLayer render loop.
 //
 
 import CompositorServices
@@ -14,6 +12,7 @@ import Spatial
 import ARKit
 import VideoToolbox
 import ObjectiveC
+import SwiftUI
 
 extension LayerRenderer.Clock.Instant.Duration {
     var timeInterval: TimeInterval {
@@ -21,6 +20,18 @@ extension LayerRenderer.Clock.Instant.Duration {
         return TimeInterval(components.seconds) + (nanoseconds / TimeInterval(NSEC_PER_SEC))
     }
 }
+
+// Render target description shared by the renderer and the capabilities sent to the streamer.
+let renderWidth = Int(1888)
+let renderHeight = Int(1824)
+let renderColorFormatSDR = MTLPixelFormat.bgra8Unorm_srgb
+var renderColorFormatHDR = MTLPixelFormat.rgba16Float
+let renderColorFormatDrawableSDR = renderColorFormatSDR
+var renderColorFormatDrawableHDR = MTLPixelFormat.rgba16Float
+let renderColorFormatVisionOS2HDR = MTLPixelFormat.rgba16Float
+let renderColorFormatDrawableVisionOS2HDR = MTLPixelFormat.rgba16Float
+let renderDepthFormat = MTLPixelFormat.depth16Unorm
+let renderViewCount = 2
 
 class MetalClientSystem {
 
@@ -49,7 +60,7 @@ class MetalClientSystem {
         
         layerRenderer.onSpatialEvent = { eventCollection in
             for event in eventCollection {
-                RealityKitClientView.handleSpatialEvent(nil, event)
+                WorldTracker.handleSpatialEvent(event)
             }
         }
         
@@ -78,6 +89,164 @@ class MetalClientSystem {
                 autoreleasepool {
                     renderer.renderFrame()
                 }
+            }
+        }
+    }
+}
+
+extension WorldTracker {
+    static func handleSpatialEvent(_ event: SpatialEventCollection.Event) {
+        var isInProgressPinch = false
+        var isRight = false
+        if event.id.hashValue == WorldTracker.shared.leftSelectionRayId {
+            isInProgressPinch = true
+        }
+        else if event.id.hashValue == WorldTracker.shared.rightSelectionRayId {
+            isInProgressPinch = true
+            isRight = true
+        }
+        
+        /*if #available(visionOS 2.0, *) {
+            print(event.chirality, event.phase, event.id.hashValue, isRight, isInProgressPinch, WorldTracker.shared.leftSelectionRayId, WorldTracker.shared.rightSelectionRayId)
+        }*/
+        
+        if event.kind == .indirectPinch && event.phase == .active {
+            if !isInProgressPinch {
+            
+                // If we have chiralities, assign based on them
+                if #available(visionOS 2.0, *) {
+                    if event.chirality == .none {
+                        if WorldTracker.shared.leftSelectionRayId != -1 {
+                            isRight = true
+                        }
+                    }
+                    else {
+                        isRight = event.chirality == .right
+                    }
+                }
+                else {
+                    if WorldTracker.shared.leftSelectionRayId != -1 {
+                        isRight = true
+                    }
+                }
+                
+                if isRight && WorldTracker.shared.rightSelectionRayId != -1 {
+                    print("THIRD HAND??? early fallback")
+                    
+                    WorldTracker.shared.leftSelectionRayId = -1
+                    WorldTracker.shared.rightSelectionRayId = -1
+                    isRight = false
+                    
+                    print(event, event.id.hashValue, isRight, isInProgressPinch, WorldTracker.shared.leftSelectionRayId, WorldTracker.shared.rightSelectionRayId)
+                    return
+                }
+                
+                if isRight {
+                    WorldTracker.shared.rightSelectionRayId = event.id.hashValue
+                }
+                else if WorldTracker.shared.leftSelectionRayId == -1 {
+                    WorldTracker.shared.leftSelectionRayId = event.id.hashValue
+                }
+                else {
+                    print("THIRD HAND???")
+                    print(event, event.id.hashValue, isRight, isInProgressPinch, WorldTracker.shared.leftSelectionRayId, WorldTracker.shared.rightSelectionRayId)
+                    return
+                }
+            }
+            
+            if isRight {
+                WorldTracker.shared.rightIsPinching = true
+            }
+            else {
+                WorldTracker.shared.leftIsPinching = true
+            }
+        }
+        else if event.kind == .indirectPinch {
+            if event.id.hashValue == WorldTracker.shared.leftSelectionRayId {
+                WorldTracker.shared.leftIsPinching = false
+                WorldTracker.shared.leftSelectionRayId = -1
+            }
+            else if event.id.hashValue == WorldTracker.shared.rightSelectionRayId {
+                WorldTracker.shared.rightIsPinching = false
+                WorldTracker.shared.rightSelectionRayId = -1
+            }
+            return
+        }
+        
+        //print(event.id.hashValue, isRight, isInProgressPinch, WorldTracker.shared.leftSelectionRayId, WorldTracker.shared.rightSelectionRayId, event.inputDevicePose)
+    
+        // For eyes: inputDevicePose is the pinch connect location, and the selection ray is
+        // the eye center plus the gaze
+        // For AssistiveTouch mouse: inputDevicePose is locked to the last plane the device was on, and
+        // the selection ray is some random pose?
+        // For keyboard accessibility touch: inputDevicePose is some random place, selectionRay is 0,0,0
+        
+        // selectionRay origin + direction
+        if let ray = event.selectionRay {
+            let origin = simd_float3(ray.origin)
+            let direction = simd_normalize(simd_float3(ray.direction))
+            let pos = origin + direction
+            
+            WorldTracker.shared.testPosition = pos
+            if isRight {
+                WorldTracker.shared.rightSelectionRayOrigin = origin
+                WorldTracker.shared.rightSelectionRayDirection = direction
+            }
+            else {
+                WorldTracker.shared.leftSelectionRayOrigin = origin
+                WorldTracker.shared.leftSelectionRayDirection = direction
+            }
+        }
+        
+        // inputDevicePose
+        if let inputPose = event.inputDevicePose {
+            let pos = simd_float3(inputPose.pose3D.position)
+            let rot = simd_quatf(inputPose.pose3D.rotation)
+            //WorldTracker.shared.testPosition = pos
+            
+            // Started a pinch and have a start position
+            if !isInProgressPinch {
+                if isRight {
+                    WorldTracker.shared.rightPinchStartPosition = pos
+                    WorldTracker.shared.rightPinchCurrentPosition = pos
+                    WorldTracker.shared.rightPinchStartAngle = rot
+                    WorldTracker.shared.rightPinchCurrentAngle = rot
+                }
+                else {
+                    WorldTracker.shared.leftPinchStartPosition = pos
+                    WorldTracker.shared.leftPinchCurrentPosition = pos
+                    WorldTracker.shared.leftPinchStartAngle = rot
+                    WorldTracker.shared.leftPinchCurrentAngle = rot
+                }
+                
+            }
+            else {
+                if isRight {
+                    WorldTracker.shared.rightPinchCurrentPosition = pos
+                    WorldTracker.shared.rightPinchCurrentAngle = rot
+                }
+                else {
+                    WorldTracker.shared.leftPinchCurrentPosition = pos
+                    WorldTracker.shared.leftPinchCurrentAngle = rot
+                }
+            }
+        }
+        else {
+            // Just in case
+            if !isInProgressPinch {
+                if isRight {
+                    WorldTracker.shared.rightPinchStartPosition = simd_float3()
+                    WorldTracker.shared.rightPinchCurrentPosition = simd_float3()
+                    WorldTracker.shared.rightPinchStartAngle = simd_quatf()
+                    WorldTracker.shared.rightPinchCurrentAngle = simd_quatf()
+                }
+                else {
+                    WorldTracker.shared.leftPinchStartPosition = simd_float3()
+                    WorldTracker.shared.leftPinchCurrentPosition = simd_float3()
+                    WorldTracker.shared.leftPinchStartAngle = simd_quatf()
+                    WorldTracker.shared.leftPinchCurrentAngle = simd_quatf()
+                }
+                
             }
         }
     }

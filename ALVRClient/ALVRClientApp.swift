@@ -5,9 +5,7 @@
 // - Changelogs (incl app version checks)
 // - GlobalSettings save/load hooks
 // - Each different space:
-//   - DummyImmersiveSpace: Literally just fetches FOV information/view transforms and exits
-//   - RealityKitClient: The RealityKit renderer.
-//   - MetalClient: Old reliable, the Metal renderer.
+//   - MetalClient: the Metal renderer.
 // - Metal Layer config (ContentStageConfiguration)
 //
 
@@ -51,7 +49,6 @@ struct ALVRClientApp: App {
     @ObservedObject private var observedGStore = ALVRClientApp.gStore
 
     @State private var clientImmersionStyle: ImmersionStyle = .mixed
-    @State private var realityKitImmersionStyle: ImmersionStyle = ALVRClientApp.gStore.settings.enableProgressive ? .progressive : .mixed
     
     static let shared = ALVRClientApp()
     static var showedChangelog = false
@@ -131,9 +128,6 @@ struct ALVRClientApp: App {
                 EventHandler.shared.initializeAlvr()
                 await WorldTracker.shared.initializeAr()
                 EventHandler.shared.start()
-            }
-            .onChange(of: observedGStore.settings.enableProgressive) {
-                realityKitImmersionStyle = ALVRClientApp.gStore.settings.enableProgressive ? .progressive : .mixed
             }
             .environment(model)
             .environmentObject(EventHandler.shared)
@@ -216,23 +210,6 @@ struct ALVRClientApp: App {
         .disablePersistentSystemOverlaysForVisionOS2(shouldDisable: ALVRClientApp.gStore.settings.disablePersistentSystemOverlays ? .hidden : .automatic)
         .immersionStyle(selection: .constant(.mixed), in: .mixed)
         .upperLimbVisibility(.visible)
-
-        ImmersiveSpace(id: "DummyImmersiveSpace") {
-            CompositorLayer(configuration: ContentStageConfiguration()) { layerRenderer in
-                let renderer = DummyMetalRenderer(layerRenderer)
-                renderer.startRenderLoop()
-            }
-        }
-        .disablePersistentSystemOverlaysForVisionOS2(shouldDisable: ALVRClientApp.gStore.settings.disablePersistentSystemOverlays ? .hidden : .automatic)
-        .immersionStyle(selection: .constant(.full), in: .full)
-        .upperLimbVisibility(ALVRClientApp.gStore.settings.showHandsOverlaid ? .visible : .hidden)
-
-        ImmersiveSpace(id: "RealityKitClient") {
-            RealityKitClientView()
-        }
-        .disablePersistentSystemOverlaysForVisionOS2(shouldDisable: ALVRClientApp.gStore.settings.disablePersistentSystemOverlays ? .hidden : .automatic)
-        .immersionStyle(selection: $realityKitImmersionStyle, in: .mixed, .progressive)
-        .upperLimbVisibility(ALVRClientApp.gStore.settings.showHandsOverlaid ? .visible : .hidden)
 
         ImmersiveSpace(id: "MetalClient") {
             CompositorLayer(configuration: ContentStageConfiguration()) { layerRenderer in

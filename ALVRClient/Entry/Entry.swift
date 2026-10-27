@@ -175,28 +175,8 @@ struct Entry: View {
                         Text("Advanced Settings:")
                             .font(.system(size: 20, weight: .bold))
                     
-                        Toggle(isOn: $gStore.settings.realityKitRenderer) {
-                            Text("RealityKit renderer*")
-                            Text("*Deprecated! May cause juddering and/or nausea!")
-                            .font(.system(size: 10))
-                        }
-                        .toggleStyle(.switch)
-                    
                         Toggle(isOn: $gStore.settings.chromaKeyEnabled) {
-#if XCODE_BETA_16
-                            if #unavailable(visionOS 2.0) {
-                                Text("Enable Chroma Keyed Passthrough*")
-                                Text("*Only works with RealityKit renderer")
-                                .font(.system(size: 10))
-                            }
-                            else {
-                                Text("Enable Chroma Keyed Passthrough")
-                            }
-#else
-                            Text("Enable Chroma Keyed Passthrough*")
-                            Text("*Only works with RealityKit renderer")
-                            .font(.system(size: 10))
-#endif
+                            Text("Enable Chroma Keyed Passthrough")
                         }
                         .toggleStyle(.switch)
                         .onChange(of: gStore.settings.chromaKeyEnabled) {
@@ -238,37 +218,6 @@ struct Entry: View {
                            }
                            .frame(width: 100)
                         }
-#if IS_ALVR_TESTFLIGHT
-                       Toggle(isOn: $gStore.settings.forceMipmapEyeTracking) {
-                            Text("Force visionOS 1.x eye tracking")
-                            Text("*Eye tracking requires Experimental Renderer. Moves faster, but requires obstructing the left eye FoV.")
-                                .font(.system(size: 10))
-                            Text("Long click View Recording in the Control Center to select ALVR broadcaster.")
-                                .font(.system(size: 10))
-                        }
-                        .toggleStyle(.switch)
-#endif
-                        Toggle(isOn: $gStore.settings.enablePersonaFaceTracking) {
-                            Text("Use Spatial Persona for Face Tracking (Beta)")
-                            Text("*Currently requires RealityKit renderer")
-                                .font(.system(size: 10))
-                        }
-                        .toggleStyle(.switch)
-                        
-                        Toggle(isOn: $gStore.settings.showFaceTrackingDebug) {
-                            Text("Show Face Tracking Debug View (Beta)")
-                            Text("*Currently requires RealityKit renderer")
-                                .font(.system(size: 10))
-                        }
-                        .toggleStyle(.switch)
-                        
-                        Toggle(isOn: $gStore.settings.enableProgressive) {
-                            Text("Enable progressive mode (use Digital Crown)")
-                            Text("*Currently requires RealityKit renderer")
-                                .font(.system(size: 10))
-                        }
-                        .toggleStyle(.switch)
-                        
                         Toggle(isOn: $gStore.settings.dismissWindowOnEnter) {
                             Text("Dismiss this window on entry")
                         }

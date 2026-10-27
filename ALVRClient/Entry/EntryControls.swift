@@ -47,49 +47,7 @@ struct EntryControls: View {
 
                     saveAction()
                     print("Opening Immersive Space")
-                    if gStore.settings.realityKitRenderer {
-                        if !DummyMetalRenderer.haveRenderInfo {
-                            var dummySpaceIsOpened = false
-                            while !dummySpaceIsOpened {
-                                switch await openImmersiveSpace(id: "DummyImmersiveSpace") {
-                                case .opened:
-                                    dummySpaceIsOpened = true
-                                case .error, .userCancelled:
-                                    fallthrough
-                                @unknown default:
-                                    dummySpaceIsOpened = false
-                                }
-                            }
-                            
-                            while dummySpaceIsOpened && !DummyMetalRenderer.haveRenderInfo {
-                                try! await Task.sleep(nanoseconds: 1_000_000)
-                            }
-                            
-                            await dismissImmersiveSpace()
-                            try! await Task.sleep(nanoseconds: 1_000_000_000)
-                        }
-                        
-                        if !DummyMetalRenderer.haveRenderInfo {
-                            print("MISSING VIEW INFO!!")
-                        }
-                        
-                        WorldTracker.shared.worldTrackingAddedOriginAnchor = false
-                        
-                        print("Open real immersive space")
-                        
-                        switch await openImmersiveSpace(id: "RealityKitClient") {
-                        case .opened:
-                            immersiveSpaceIsShown = true
-                        case .error, .userCancelled:
-                            fallthrough
-                        @unknown default:
-                            immersiveSpaceIsShown = false
-                            showImmersiveSpace = false
-                        }
-                    }
-                    else {
-                        await openImmersiveSpace(id: "MetalClient")
-                    }
+                    await openImmersiveSpace(id: "MetalClient")
                     VideoHandler.applyRefreshRate(videoFormat: EventHandler.shared.videoFormat)
                     if gStore.settings.dismissWindowOnEnter {
                         dismissWindow(id: "Entry")

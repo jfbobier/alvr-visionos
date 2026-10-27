@@ -1,8 +1,7 @@
 //
 //  Renderer.swift
 //
-// Primarily, stuff for the MetalClientSystem rendering, but portions are shared
-// with RealityKitClientSystem
+// Stuff for the MetalClientSystem rendering
 //
 // Notable portions include:
 // - Pipeline setup for different color formats and compiled Metal constants (rebuildRenderPipelines)
@@ -159,8 +158,6 @@ class Renderer {
     // Was curious if it improved; it's still juddery.
     var useApplesReprojection = false
     
-    // More readable helper var than layerRenderer == nil
-    var isRealityKit = false
     var hdrEnabled = false
     var currentRenderColorFormat = renderColorFormatSDR
     var currentDrawableRenderColorFormat = renderColorFormatDrawableSDR
@@ -180,16 +177,11 @@ class Renderer {
     
     init(_ layerRenderer: LayerRenderer?) {
         self.layerRenderer = layerRenderer
-        if layerRenderer == nil {
-            isRealityKit = true
-        }
-        else {
 #if XCODE_BETA_26
-            if #available(visionOS 26.0, *) {
-                //self.layerRenderer?.renderQuality = .init(1.0)
-            }
-#endif
+        if #available(visionOS 26.0, *) {
+            //self.layerRenderer?.renderQuality = .init(1.0)
         }
+#endif
 
         encodingGamma = EventHandler.shared.encodingGamma
         hdrEnabled = EventHandler.shared.enableHdr
@@ -438,7 +430,7 @@ class Renderer {
     }
     
     // Copy/"passthrough" pipeline for transferring from an offscreen MTLTexture
-    // to the final RealityKit MTLTexture.
+    // to the final MTLTexture.
     func buildCopyPipelineWithDevice(device: MTLDevice,
                                              colorFormat: MTLPixelFormat,
                                              viewCount: Int,
@@ -456,7 +448,7 @@ class Renderer {
             chromaKeyEnabled = settings.chromaKeyEnabled
         }
         else {
-            chromaKeyEnabled = settings.chromaKeyEnabled && isRealityKit
+            chromaKeyEnabled = false
         }
         chromaKeyColor = simd_float3(settings.chromaKeyColorR, settings.chromaKeyColorG, settings.chromaKeyColorB)
         chromaKeyLerpDistRange = simd_float2(settings.chromaKeyDistRangeMin, settings.chromaKeyDistRangeMax)
@@ -467,7 +459,6 @@ class Renderer {
         fragmentConstants.setConstantValue(&chromaKeyEnabled, type: .bool, index: ALVRFunctionConstant.chromaKeyEnabled.rawValue)
         fragmentConstants.setConstantValue(&chromaKeyColorLinear, type: .float3, index: ALVRFunctionConstant.chromaKeyColor.rawValue)
         fragmentConstants.setConstantValue(&chromaKeyLerpDistRange, type: .float2, index: ALVRFunctionConstant.chromaKeyLerpDistRange.rawValue)
-        fragmentConstants.setConstantValue(&isRealityKit, type: .bool, index: ALVRFunctionConstant.realityKitEnabled.rawValue)
         fragmentConstants.setConstantValue(&mutVrrScreenSize, type: .float2, index: ALVRFunctionConstant.vrrScreenSize.rawValue)
         fragmentConstants.setConstantValue(&mutVrrPhysSize, type: .float2, index: ALVRFunctionConstant.vrrPhysSize.rawValue)
 
@@ -533,7 +524,7 @@ class Renderer {
             chromaKeyEnabled = settings.chromaKeyEnabled
         }
         else {
-            chromaKeyEnabled = settings.chromaKeyEnabled && isRealityKit
+            chromaKeyEnabled = false
         }
         chromaKeyColor = simd_float3(settings.chromaKeyColorR, settings.chromaKeyColorG, settings.chromaKeyColorB)
         chromaKeyLerpDistRange = simd_float2(settings.chromaKeyDistRangeMin, settings.chromaKeyDistRangeMax)
@@ -542,7 +533,6 @@ class Renderer {
         fragmentConstants.setConstantValue(&chromaKeyEnabled, type: .bool, index: ALVRFunctionConstant.chromaKeyEnabled.rawValue)
         fragmentConstants.setConstantValue(&chromaKeyColorLinear, type: .float3, index: ALVRFunctionConstant.chromaKeyColor.rawValue)
         fragmentConstants.setConstantValue(&chromaKeyLerpDistRange, type: .float2, index: ALVRFunctionConstant.chromaKeyLerpDistRange.rawValue)
-        fragmentConstants.setConstantValue(&isRealityKit, type: .bool, index: ALVRFunctionConstant.realityKitEnabled.rawValue)
         fragmentConstants.setConstantValue(&encodingGamma, type: .float, index: ALVRFunctionConstant.encodingGamma.rawValue)
         fragmentConstants.setConstantValue(&currentYuvTransform.columns.0, type: .float4, index: ALVRFunctionConstant.encodingYUVTransform0.rawValue)
         fragmentConstants.setConstantValue(&currentYuvTransform.columns.1, type: .float4, index: ALVRFunctionConstant.encodingYUVTransform1.rawValue)
@@ -597,7 +587,6 @@ class Renderer {
             simdDeviceAnchorNoTranslation.columns.3 = simd_float4(0.0, 0.0, 0.0, 1.0)
             let viewMatrix = (simdDeviceAnchor * viewTransforms[viewIndex]).inverse
             let viewMatrixFrame = (framePoseNoTranslation.inverse * simdDeviceAnchorNoTranslation * viewTransforms[viewIndex]).inverse
-            let viewMatrixFrameRk = (framePoseNoTranslation.inverse * simdDeviceAnchorNoTranslation).inverse // RealityKit implicitly applies the view transforms when we draw the quad entity
             var projection = matrix_identity_float4x4
             if #available(visionOS 2.0, *), drawable != nil {
 #if XCODE_BETA_16
@@ -623,7 +612,7 @@ class Renderer {
                           reverseZ: true)
                 projection = matrix_float4x4(p)
             }
-            return Uniforms(projectionMatrix: projection, modelViewMatrixFrame: isRealityKit ? viewMatrixFrameRk : viewMatrixFrame, modelViewMatrix: viewMatrix, tangents: sentTangents)
+            return Uniforms(projectionMatrix: projection, modelViewMatrixFrame: viewMatrixFrame, modelViewMatrix: viewMatrix, tangents: sentTangents)
         }
         
         self.uniforms[0].uniforms.0 = uniforms(forViewIndex: 0)
@@ -1041,9 +1030,7 @@ class Renderer {
                 renderNothing(0, commandBuffer: commandBuffer, renderTargetColor: drawable.colorTextures[0], renderTargetDepth: drawable.depthTextures[0], viewports: viewports, viewTransforms: viewTransforms, sentViewTangents: sentViewTangents, realViewTangents: realViewTangents, nearZ: nearZ, farZ: farZ, rasterizationRateMap: rasterizationRateMap, queuedFrame: queuedFrame, framePose: noFramePose, simdDeviceAnchor: simdDeviceAnchor, drawable: drawable)
                 
                 renderOverlay(commandBuffer: commandBuffer, renderTargetColor: drawable.colorTextures[0], renderTargetDepth: drawable.depthTextures[0], viewports: viewports, viewTransforms: viewTransforms, sentViewTangents: sentViewTangents, realViewTangents: realViewTangents, nearZ: nearZ, farZ: farZ, rasterizationRateMap: rasterizationRateMap, queuedFrame: queuedFrame, framePose: noFramePose, simdDeviceAnchor: simdDeviceAnchor)
-                if !isRealityKit {
-                    renderStreamingFrameDepth(commandBuffer: commandBuffer, renderTargetColor: drawable.colorTextures[0], renderTargetDepth: drawable.depthTextures[0], viewports: viewports, viewTransforms: viewTransforms, sentViewTangents: sentViewTangents, realViewTangents: realViewTangents, nearZ: nearZ, farZ: farZ, rasterizationRateMap: rasterizationRateMap, queuedFrame: queuedFrame)
-                }
+                renderStreamingFrameDepth(commandBuffer: commandBuffer, renderTargetColor: drawable.colorTextures[0], renderTargetDepth: drawable.depthTextures[0], viewports: viewports, viewTransforms: viewTransforms, sentViewTangents: sentViewTangents, realViewTangents: realViewTangents, nearZ: nearZ, farZ: farZ, rasterizationRateMap: rasterizationRateMap, queuedFrame: queuedFrame)
             }
             
             drawable.encodePresent(commandBuffer: commandBuffer)
@@ -1157,10 +1144,6 @@ class Renderer {
     // Only renders the frame depth, used to correct depth after the overlay is rendered
     // because Apple's Metal renderer is kinda weird about it.
     func renderStreamingFrameDepth(commandBuffer: MTLCommandBuffer, renderTargetColor: MTLTexture, renderTargetDepth: MTLTexture, viewports: [MTLViewport], viewTransforms: [simd_float4x4], sentViewTangents: [simd_float4], realViewTangents: [simd_float4], nearZ: Double, farZ: Double, rasterizationRateMap: MTLRasterizationRateMap?, queuedFrame: QueuedFrame?) {
-        if currentRenderColorFormat != renderTargetColor.pixelFormat && isRealityKit {
-            return
-        }
-
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = renderTargetColor
         renderPassDescriptor.colorAttachments[0].loadAction = .load
@@ -1209,16 +1192,13 @@ class Renderer {
     
     // Clears the render target, nothing more nothing less.
     func renderNothing(_ whichIdx: Int, commandBuffer: MTLCommandBuffer, renderTargetColor: MTLTexture, renderTargetDepth: MTLTexture, viewports: [MTLViewport], viewTransforms: [simd_float4x4], sentViewTangents: [simd_float4], realViewTangents: [simd_float4], nearZ: Double, farZ: Double, rasterizationRateMap: MTLRasterizationRateMap?, queuedFrame: QueuedFrame?, framePose: simd_float4x4, simdDeviceAnchor: simd_float4x4, drawable: LayerRenderer.Drawable?) {
-        if currentRenderColorFormat != renderTargetColor.pixelFormat && isRealityKit {
-            return
-        }
         self.updateDynamicBufferState()
         
         self.updateGameStateForVideoFrame(whichIdx, drawable: drawable, viewTransforms: viewTransforms, sentViewTangents: sentViewTangents, realViewTangents: realViewTangents, nearZ: nearZ, farZ: farZ, framePose: framePose, simdDeviceAnchor: simdDeviceAnchor)
         
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = renderTargetColor
-        renderPassDescriptor.colorAttachments[0].loadAction = isRealityKit ? (whichIdx == 0 ? .clear : .load) : .clear 
+        renderPassDescriptor.colorAttachments[0].loadAction = .clear
         renderPassDescriptor.colorAttachments[0].storeAction = .store
         renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 0.0)
         renderPassDescriptor.depthAttachment.texture = renderTargetDepth
@@ -1269,9 +1249,6 @@ class Renderer {
     // Renders a wireframe overlay on top of the existing video frame (or nothing)
     func renderOverlay(commandBuffer: MTLCommandBuffer, renderTargetColor: MTLTexture, renderTargetDepth: MTLTexture, viewports: [MTLViewport], viewTransforms: [simd_float4x4], sentViewTangents: [simd_float4], realViewTangents: [simd_float4],  nearZ: Double, farZ: Double, rasterizationRateMap: MTLRasterizationRateMap?, queuedFrame: QueuedFrame?, framePose: simd_float4x4, simdDeviceAnchor: simd_float4x4)
     {
-        if currentRenderColorFormat != renderTargetColor.pixelFormat && isRealityKit {
-            return
-        }
         // Toss out the depth buffer, keep colors
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = renderTargetColor
@@ -1449,10 +1426,6 @@ class Renderer {
 
     // Renders the chaperone proximity overlay on top of the existing video frame.
     func renderChaperone(commandBuffer: MTLCommandBuffer, renderTargetColor: MTLTexture, renderTargetDepth: MTLTexture, viewports: [MTLViewport], rasterizationRateMap: MTLRasterizationRateMap?, simdDeviceAnchor: simd_float4x4) {
-        if currentRenderColorFormat != renderTargetColor.pixelFormat && isRealityKit {
-            return
-        }
-
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = renderTargetColor
         renderPassDescriptor.colorAttachments[0].loadAction = .load
@@ -1678,25 +1651,13 @@ class Renderer {
     
     // Sets up rendering a video frame, including uniforms
     func beginRenderStreamingFrame(_ whichIdx: Int, commandBuffer: MTLCommandBuffer, renderTargetColor: MTLTexture, renderTargetDepth: MTLTexture, viewports: [MTLViewport], viewTransforms: [simd_float4x4], sentViewTangents: [simd_float4], realViewTangents: [simd_float4], nearZ: Double, farZ: Double, rasterizationRateMap: MTLRasterizationRateMap?, queuedFrame: QueuedFrame?, framePose: simd_float4x4, simdDeviceAnchor: simd_float4x4, drawable: LayerRenderer.Drawable?) -> (any MTLRenderCommandEncoder)? {
-        if currentRenderColorFormat != renderTargetColor.pixelFormat && isRealityKit {
-            return nil
-        }
-        
-        // TODO refactor this
-        if isRealityKit {
-            fadeInOverlayAlpha -= 0.01
-            if fadeInOverlayAlpha < 0.0 {
-                fadeInOverlayAlpha = 0.0
-            }
-        }
-    
         self.updateDynamicBufferState()
         
         self.updateGameStateForVideoFrame(whichIdx, drawable: drawable, viewTransforms: viewTransforms, sentViewTangents: sentViewTangents, realViewTangents: realViewTangents, nearZ: nearZ, farZ: farZ, framePose: framePose, simdDeviceAnchor: simdDeviceAnchor)
         
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = renderTargetColor
-        renderPassDescriptor.colorAttachments[0].loadAction = whichIdx == 0 ? (isRealityKit ? .dontCare : .clear) : .load
+        renderPassDescriptor.colorAttachments[0].loadAction = whichIdx == 0 ? .clear : .load
         renderPassDescriptor.colorAttachments[0].storeAction = .store
         renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0.0, green: 0.0, blue: 0.0, alpha: chromaKeyEnabled ? 0.0 : 1.0)
         renderPassDescriptor.rasterizationRateMap = rasterizationRateMap
@@ -1790,10 +1751,6 @@ class Renderer {
     
     // Actually do the video frame render.
     func renderStreamingFrame(_ whichIdx: Int, commandBuffer: MTLCommandBuffer, renderEncoder: any MTLRenderCommandEncoder, renderTargetColor: MTLTexture, renderTargetDepth: MTLTexture, viewports: [MTLViewport], viewTransforms: [simd_float4x4], sentViewTangents: [simd_float4], realViewTangents: [simd_float4], nearZ: Double, farZ: Double, rasterizationRateMap: MTLRasterizationRateMap?, framePose: simd_float4x4, simdDeviceAnchor: simd_float4x4) {
-        if currentRenderColorFormat != renderTargetColor.pixelFormat && isRealityKit {
-            return
-        }
-        
         renderEncoder.setViewports(viewports)
         
         if viewports.count > 1 {
@@ -1815,10 +1772,6 @@ class Renderer {
     
     // Render an overlay on top of the video frame.
     func renderStreamingFrameOverlays(_ whichIdx: Int, commandBuffer: MTLCommandBuffer, renderTargetColor: MTLTexture, renderTargetDepth: MTLTexture, viewports: [MTLViewport], viewTransforms: [simd_float4x4], sentViewTangents: [simd_float4], realViewTangents: [simd_float4], nearZ: Double, farZ: Double, rasterizationRateMap: MTLRasterizationRateMap?, queuedFrame: QueuedFrame?, framePose: simd_float4x4, simdDeviceAnchor: simd_float4x4, drawable: LayerRenderer.Drawable?) {
-        if currentRenderColorFormat != renderTargetColor.pixelFormat && isRealityKit {
-            return
-        }
-    
         self.updateDynamicBufferState()
         
         self.updateGameStateForVideoFrame(whichIdx, drawable: drawable, viewTransforms: viewTransforms, sentViewTangents: sentViewTangents, realViewTangents: realViewTangents, nearZ: nearZ, farZ: farZ, framePose: framePose, simdDeviceAnchor: simdDeviceAnchor)
@@ -1832,10 +1785,8 @@ class Renderer {
         if ALVRClientApp.gStore.settings.chaperoneDistanceCm > 0 || chaperoneSystem.hasActiveState {
             renderChaperone(commandBuffer: commandBuffer, renderTargetColor: renderTargetColor, renderTargetDepth: renderTargetDepth, viewports: viewports, rasterizationRateMap: rasterizationRateMap, simdDeviceAnchor: simdDeviceAnchor)
         }
-        if !isRealityKit {
-            renderStreamingFrameDepth(commandBuffer: commandBuffer, renderTargetColor: renderTargetColor, renderTargetDepth: renderTargetDepth, viewports: viewports, viewTransforms: viewTransforms, sentViewTangents: sentViewTangents, realViewTangents: realViewTangents, nearZ: nearZ, farZ: farZ, rasterizationRateMap: rasterizationRateMap, queuedFrame: queuedFrame)
-        }
-        if !isRealityKit && ALVRClientApp.gStore.settings.showPerformanceHud {
+        renderStreamingFrameDepth(commandBuffer: commandBuffer, renderTargetColor: renderTargetColor, renderTargetDepth: renderTargetDepth, viewports: viewports, viewTransforms: viewTransforms, sentViewTangents: sentViewTangents, realViewTangents: realViewTangents, nearZ: nearZ, farZ: farZ, rasterizationRateMap: rasterizationRateMap, queuedFrame: queuedFrame)
+        if ALVRClientApp.gStore.settings.showPerformanceHud {
             renderPerformanceHud(commandBuffer: commandBuffer, renderTargetColor: renderTargetColor, renderTargetDepth: renderTargetDepth, viewports: viewports, rasterizationRateMap: rasterizationRateMap, simdDeviceAnchor: simdDeviceAnchor)
         }
     }
