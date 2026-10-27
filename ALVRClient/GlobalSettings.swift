@@ -6,6 +6,7 @@
 
 import Foundation
 import SwiftUI
+import simd
 
 struct GlobalSettings: Codable {
     var keepSteamVRCenter: Bool = false
@@ -22,6 +23,9 @@ struct GlobalSettings: Codable {
     var dismissWindowOnEnter: Bool = true
     var emulatedPinchInteractions: Bool = false
     var fovRenderScale: Float = 1.0
+    /// Per-edge limit of the field of view declared to the streamer, from the visible window measured on a Vision Pro
+    /// (docs/AVP_FOV.md in the AirFrameXR repo): "off", "tight", "measured" (visible + 3 deg), "safer" (visible + 5 deg).
+    var visibleFovLimit: String = "measured"
     var targetHandsAtRoundtripLatency = false
     var showFaceTrackingDebug = false
     var lastUsedAppVersion = "never launched"
@@ -50,6 +54,7 @@ struct GlobalSettings: Codable {
         self.dismissWindowOnEnter = try container.decodeIfPresent(Bool.self, forKey: .dismissWindowOnEnter) ?? self.dismissWindowOnEnter
         self.emulatedPinchInteractions = try container.decodeIfPresent(Bool.self, forKey: .emulatedPinchInteractions) ?? self.emulatedPinchInteractions
         self.fovRenderScale = try container.decodeIfPresent(Float.self, forKey: .fovRenderScale) ?? self.fovRenderScale
+        self.visibleFovLimit = try container.decodeIfPresent(String.self, forKey: .visibleFovLimit) ?? self.visibleFovLimit
         self.targetHandsAtRoundtripLatency = try container.decodeIfPresent(Bool.self, forKey: .targetHandsAtRoundtripLatency) ?? self.targetHandsAtRoundtripLatency
         self.showFaceTrackingDebug = try container.decodeIfPresent(Bool.self, forKey: .showFaceTrackingDebug) ?? self.showFaceTrackingDebug
         self.lastUsedAppVersion = try container.decodeIfPresent(String.self, forKey: .lastUsedAppVersion) ?? self.lastUsedAppVersion
@@ -57,6 +62,21 @@ struct GlobalSettings: Codable {
         self.showPerformanceHud = try container.decodeIfPresent(Bool.self, forKey: .showPerformanceHud) ?? self.showPerformanceHud
         self.claimControllerHomeButton = try container.decodeIfPresent(Bool.self, forKey: .claimControllerHomeButton) ?? self.claimControllerHomeButton
         self.headLookaheadMs = try container.decodeIfPresent(Int.self, forKey: .headLookaheadMs) ?? self.headLookaheadMs
+    }
+}
+
+extension GlobalSettings {
+    /// Tangent limits (left, right, up, down) for one eye, or nil when the limit is off. Measured on the left eye as
+    /// outer / inner / up / down; the right eye is assumed to mirror it, so outer and inner swap.
+    func visibleFovTangents(isLeftEye: Bool) -> simd_float4? {
+        let outerInnerUpDown: simd_float4
+        switch visibleFovLimit {
+        case "tight": outerInnerUpDown = simd_float4(0.85, 0.84, 0.81, 0.68)
+        case "measured": outerInnerUpDown = simd_float4(0.94, 0.93, 0.90, 0.76)
+        case "safer": outerInnerUpDown = simd_float4(1.01, 1.00, 0.97, 0.82)
+        default: return nil
+        }
+        return isLeftEye ? outerInnerUpDown : simd_float4(outerInnerUpDown.y, outerInnerUpDown.x, outerInnerUpDown.z, outerInnerUpDown.w)
     }
 }
 

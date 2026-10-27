@@ -223,6 +223,23 @@ struct Entry: View {
                         }
                         .toggleStyle(.switch)
                         
+                        HStack {
+                            Text("Visible field of view")
+                            Picker("Visible field of view", selection: $gStore.settings.visibleFovLimit) {
+                                Text("Off").tag("off")
+                                Text("Tight").tag("tight")
+                                Text("Measured (+3°)").tag("measured")
+                                Text("Safer (+5°)").tag("safer")
+                            }
+                            .pickerStyle(.menu)
+                            .onChange(of: gStore.settings.visibleFovLimit) {
+                                saveAction()
+                            }
+                        }
+                        Text("Tells the streamer only the angles the panel can show (measured on one Vision Pro). Less to render, encode and decode. Reconnect after changing.")
+                            .font(.system(size: 10))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
                         Text("FoV Scale").frame(maxWidth: .infinity, alignment: .leading)
                         HStack {
                            Slider(value: $gStore.settings.fovRenderScale,

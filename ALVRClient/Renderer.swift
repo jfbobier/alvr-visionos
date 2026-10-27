@@ -799,8 +799,12 @@ class Renderer {
                 let tangentsRight = mainDrawable.gimmeTangents(viewIndex: 1)
                 let transformLeft = mainDrawable.views[0].transform
                 let transformRight = mainDrawable.views[1].transform
-                let leftAngles = atan(tangentsLeft * settings.fovRenderScale)
-                let rightAngles = mainDrawable.views.count > 1 ? atan(tangentsRight * settings.fovRenderScale) : leftAngles
+                // Declare only what the panel can show (per edge, never more than the drawable's own); the streamer then
+                // renders, encodes and sends that window instead of the full frustum.
+                let limitedTangentsLeft = settings.visibleFovTangents(isLeftEye: true).map { simd_min(tangentsLeft, $0) } ?? tangentsLeft
+                let limitedTangentsRight = settings.visibleFovTangents(isLeftEye: false).map { simd_min(tangentsRight, $0) } ?? tangentsRight
+                let leftAngles = atan(limitedTangentsLeft * settings.fovRenderScale)
+                let rightAngles = mainDrawable.views.count > 1 ? atan(limitedTangentsRight * settings.fovRenderScale) : leftAngles
                 let leftFov = AlvrFov(left: -leftAngles.x, right: leftAngles.y, up: leftAngles.z, down: -leftAngles.w)
                 let rightFov = AlvrFov(left: -rightAngles.x, right: rightAngles.y, up: rightAngles.z, down: -rightAngles.w)
                 
