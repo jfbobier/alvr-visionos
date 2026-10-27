@@ -450,6 +450,12 @@ class WorldTracker {
     var leftPinchEyeDelta = simd_float3()
     var rightPinchEyeDelta = simd_float3()
     var floorCorrectionTransform = simd_float3()
+    // Floor height (origin frame, metres) from the largest detected floor plane; nil until a floor is seen.
+    var detectedFloorY: Float? = nil
+    // The vertical shift currently applied for the floor (slews towards -detectedFloorY once the picture is up).
+    var appliedFloorShift: Float = 0.0
+    var lastFloorShiftTime: Double = 0.0
+    var lastFloorLogTime: Double = 0.0
     
     var leftSkeletonDisableHysteresis = 0.0
     var rightSkeletonDisableHysteresis = 0.0
@@ -902,6 +908,7 @@ class WorldTracker {
         lockPlaneAnchors()
         planeAnchors[anchor.id] = anchor
         planeCache[anchor.id] = cachedPlaneData(from: anchor)
+        detectedFloorY = largestFloorHeight()
         unlockPlaneAnchors()
     }
 
@@ -909,7 +916,52 @@ class WorldTracker {
         lockPlaneAnchors()
         planeAnchors.removeValue(forKey: anchor.id)
         planeCache.removeValue(forKey: anchor.id)
+        detectedFloorY = largestFloorHeight()
         unlockPlaneAnchors()
+    }
+
+    // Height of the largest horizontal plane classified as floor (at least half a square metre); call with the plane lock held.
+    private func largestFloorHeight() -> Float? {
+        var best: (area: Float, y: Float)? = nil
+        for plane in planeCache.values where plane.classification == .floor && abs(plane.normal.y) > 0.9 {
+            let area = 4.0 * plane.halfWidth * plane.halfHeight
+            if area >= 0.5 && area > (best?.area ?? 0.0) {
+                best = (area, plane.position.y)
+            }
+        }
+        return best?.y
+    }
+
+    /// The vertical shift that makes the head height read right for the game: the detected floor goes to zero (at most
+    /// 2 cm per second once the picture is up, so frames in flight do not jump), plus the manual offset. With no
+    /// plausible floor the last shift is kept.
+    func floorShift(headY: Float) -> Float {
+        let settings = ALVRClientApp.gStore.settings
+        let now = CACurrentMediaTime()
+        let dt = Float(min(max(now - lastFloorShiftTime, 0.0), 0.1))
+        lastFloorShiftTime = now
+        if settings.autoFloorHeight {
+            if let floorY = detectedFloorY, headY - floorY > 0.3, headY - floorY < 2.4 {
+                let target = -floorY
+                let diff = target - appliedFloorShift
+                if EventHandler.shared.framesRendered < 300 || abs(diff) > 1.0 {
+                    appliedFloorShift = target
+                } else {
+                    let step = 0.02 * dt
+                    appliedFloorShift += min(max(diff, -step), step)
+                }
+            }
+        } else {
+            appliedFloorShift = 0.0
+        }
+        let shift = appliedFloorShift + Float(settings.heightOffsetCm) / 100.0
+        if now - lastFloorLogTime > 2.0 {
+            lastFloorLogTime = now
+            let floorText = detectedFloorY.map { String(format: "%.2f", $0) } ?? "none"
+            let line = String(format: "[floor] head y %.2f floor y %@ (head above floor %@) shift %.3f manual %d cm", headY, floorText, detectedFloorY.map { String(format: "%.2f", headY - $0) } ?? "-", shift, settings.heightOffsetCm)
+            line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_ERROR.rawValue), $0) }
+        }
+        return shift
     }
     
     func lockPlaneAnchors() {
@@ -2604,13 +2656,7 @@ class WorldTracker {
         //let targetTimestampNS = UInt64(targetTimestampWalkedBack * Double(NSEC_PER_SEC))
         let reportedTargetTimestampNS = UInt64(reportedTargetTimestamp * Double(NSEC_PER_SEC))
 
-        floorCorrectionTransform = simd_float3() // TODO: Set floor height to plane provider floor height? Raycast it dynamically? idk.
-#if XCODE_BETA_16
-        if #available(visionOS 2.0, *) {
-            // TODO: This might be the height of my carpet lol
-            //floorCorrectionTransform.y = averageViewTransformPositionalComponent.y * 0.5
-        }
-#endif
+        floorCorrectionTransform = simd_float3(0.0, floorShift(headY: deviceAnchor.originFromAnchorTransform.columns.3.y), 0.0)
 
         var appleOriginFromAnchor = deviceAnchor.originFromAnchorTransform
         appleOriginFromAnchor.columns.3 += floorCorrectionTransform.asFloat4()

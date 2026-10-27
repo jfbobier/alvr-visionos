@@ -24,6 +24,10 @@ struct GlobalSettings: Codable {
     var dismissWindowOnEnter: Bool = true
     var emulatedPinchInteractions: Bool = false
     var fovRenderScale: Float = 1.0
+    /// Put the floor the room scan found at height zero for the game (the head height then reads right, seated or standing).
+    var autoFloorHeight: Bool = true
+    /// Manual height offset in centimetres, added on top; positive raises the player in the game.
+    var heightOffsetCm: Int = 0
     /// Per-edge limit of the field of view declared to the streamer, from the visible window measured on a Vision Pro
     /// (docs/AVP_FOV.md in the AirFrameXR repo): "off", "tight", "measured" (visible + 3 deg), "safer" (visible + 5 deg).
     var visibleFovLimit: String = "measured"
@@ -56,6 +60,8 @@ struct GlobalSettings: Codable {
         self.dismissWindowOnEnter = try container.decodeIfPresent(Bool.self, forKey: .dismissWindowOnEnter) ?? self.dismissWindowOnEnter
         self.emulatedPinchInteractions = try container.decodeIfPresent(Bool.self, forKey: .emulatedPinchInteractions) ?? self.emulatedPinchInteractions
         self.fovRenderScale = try container.decodeIfPresent(Float.self, forKey: .fovRenderScale) ?? self.fovRenderScale
+        self.autoFloorHeight = try container.decodeIfPresent(Bool.self, forKey: .autoFloorHeight) ?? self.autoFloorHeight
+        self.heightOffsetCm = try container.decodeIfPresent(Int.self, forKey: .heightOffsetCm) ?? self.heightOffsetCm
         self.visibleFovLimit = try container.decodeIfPresent(String.self, forKey: .visibleFovLimit) ?? self.visibleFovLimit
         self.targetHandsAtRoundtripLatency = try container.decodeIfPresent(Bool.self, forKey: .targetHandsAtRoundtripLatency) ?? self.targetHandsAtRoundtripLatency
         self.showFaceTrackingDebug = try container.decodeIfPresent(Bool.self, forKey: .showFaceTrackingDebug) ?? self.showFaceTrackingDebug

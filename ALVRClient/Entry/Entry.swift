@@ -19,6 +19,13 @@ struct Entry: View {
         )
     }
 
+    private var heightOffsetCm: Binding<Double> {
+        Binding(
+            get: { Double(gStore.settings.heightOffsetCm) },
+            set: { gStore.settings.heightOffsetCm = Int($0.rounded()) }
+        )
+    }
+
     var body: some View {
         VStack {
             VStack {
@@ -91,6 +98,29 @@ struct Entry: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal)
+
+            VStack {
+                Toggle(isOn: $gStore.settings.autoFloorHeight) {
+                    Text("Floor from the room scan")
+                }
+                .toggleStyle(.switch)
+                .onChange(of: gStore.settings.autoFloorHeight) {
+                    saveAction()
+                }
+                Text(String(format: "Height offset: %+d cm", gStore.settings.heightOffsetCm))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Slider(value: heightOffsetCm, in: -30...30, step: 1) {
+                    Text("Height offset")
+                }
+                .onChange(of: gStore.settings.heightOffsetCm) {
+                    saveAction()
+                }
+                Text("Puts the floor the headset found at height zero, so your height reads right in games. If you still stand too low or too high, correct it here (positive raises you). Takes effect at once.")
+                    .font(.system(size: 10))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal)
+            .padding(.top)
 
             VStack {
                 if eventHandler.hostname != "" && eventHandler.IP != "" {
