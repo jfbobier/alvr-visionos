@@ -76,6 +76,19 @@ struct Entry: View {
                 Text("Tells the streamer only the angles the panel can show (measured on one Vision Pro). If an edge of the picture is cut off, pick Safer. Reconnect after changing.")
                     .font(.system(size: 10))
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(String(format: "FoV Scale: %.2f", gStore.settings.fovRenderScale))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top)
+                Slider(value: $gStore.settings.fovRenderScale, in: 0.7...1.1, step: 0.05) {
+                    Text("FoV Scale")
+                }
+                .onChange(of: gStore.settings.fovRenderScale) {
+                    saveAction()
+                }
+                Text("Multiplies the visible field of view above, on every edge: 0.9 with Measured is about Tight. Less angle for the same stream, so denser pixels, but the margin is gone. Reconnect after changing.")
+                    .font(.system(size: 10))
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal)
 
