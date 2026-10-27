@@ -19,6 +19,8 @@
 	<array>
 		<string>_alvr._tcp</string>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>AirFrameXR finds and connects to the streamer on your local network.</string>
 	<key>NSHandsTrackingUsageDescription</key>
 	<string>AirFrameXR sends your hand positions and finger joints to the streamer so games can use your hands.</string>
 	<key>NSWorldSensingUsageDescription</key>

@@ -16,6 +16,10 @@ on:
         description: "Include the low-latency-streaming entitlement (untick if signing complains about it)"
         type: boolean
         default: true
+      unsigned_check:
+        description: "Only check that the Release archive builds (no signing, no secrets needed, nothing is uploaded)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -37,6 +41,7 @@ jobs:
       BUNDLE_ID: ${{ vars.BUNDLE_ID }}
     steps:
       - name: Check configuration
+        if: ${{ !inputs.unsigned_check }}
         run: |
           missing=""
           for v in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 TEAM_ID BUNDLE_ID; do
@@ -86,6 +91,7 @@ jobs:
         run: xcodebuild -downloadComponent MetalToolchain
 
       - name: App Store Connect API key
+        if: ${{ !inputs.unsigned_check }}
         run: |
           mkdir -p "$RUNNER_TEMP/asc"
           printf '%s\n' "$ASC_KEY_P8" > "$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8"
@@ -101,7 +107,33 @@ jobs:
           fi
           cat build/AirFrameXR.entitlements
 
+      - name: Archive (unsigned check)
+        if: ${{ inputs.unsigned_check }}
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project ALVRClient.xcodeproj -scheme ALVRClient -configuration Release \
+            -destination 'generic/platform=visionOS' \
+            -archivePath build/AirFrameXR.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            PRODUCT_BUNDLE_IDENTIFIER=check.airframexr.client \
+            CODE_SIGN_ENTITLEMENTS="$PWD/build/AirFrameXR.entitlements" \
+            MARKETING_VERSION="${{ inputs.marketing_version }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            2>&1 | tee build/archive.log
+          APP=build/AirFrameXR.xcarchive/Products/Applications/ALVRClient.app
+          test -d "$APP"
+          PB=/usr/libexec/PlistBuddy
+          echo "bundle id:  $($PB -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+          echo "display:    $($PB -c 'Print :CFBundleDisplayName' "$APP/Info.plist")"
+          echo "version:    $($PB -c 'Print :CFBundleShortVersionString' "$APP/Info.plist") ($($PB -c 'Print :CFBundleVersion' "$APP/Info.plist"))"
+          test "$($PB -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = "check.airframexr.client"
+          if [ -d "$APP/PlugIns" ]; then echo "::error::an extension is still embedded"; exit 1; fi
+          ls "$APP" | head -30
+          test -f "$APP/Assets.car"
+
       - name: Archive
+        if: ${{ !inputs.unsigned_check }}
         run: |
           set -o pipefail
           xcodebuild archive \
@@ -121,6 +153,7 @@ jobs:
             2>&1 | tee build/archive.log
 
       - name: Export and upload to TestFlight
+        if: ${{ !inputs.unsigned_check }}
         run: |
           set -o pipefail
           cat > build/ExportOptions.plist <<PLIST
