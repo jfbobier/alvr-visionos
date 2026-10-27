@@ -4,6 +4,7 @@
 
 import SwiftUI
 import CompositorServices
+import GameController
 
 extension Scene {
   func disablePersistentSystemOverlaysForVisionOS2(shouldDisable: Visibility) -> some Scene {
