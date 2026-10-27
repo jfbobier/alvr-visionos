@@ -1,0 +1,159 @@
+name: TestFlight
+
+# Builds, signs and uploads the visionOS client to TestFlight. Run it by hand (Actions > TestFlight > Run workflow).
+# One-time setup (secrets, variables, the App Store Connect app record): docs/TESTFLIGHT.md.
+#
+# Signing is automatic and cloud-managed: Xcode creates/fetches the distribution certificate and the provisioning
+# profile with the App Store Connect API key. An Apple ID and password cannot be used in CI (two-factor).
+
+on:
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: "App version shown in TestFlight (CFBundleShortVersionString)"
+        default: "0.1.0"
+      low_latency_streaming:
+        description: "Include the low-latency-streaming entitlement (untick if signing complains about it)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    name: Archive and upload
+    runs-on: xcode-27
+    timeout-minutes: 90
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      BUNDLE_ID: ${{ vars.BUNDLE_ID }}
+    steps:
+      - name: Check configuration
+        run: |
+          missing=""
+          for v in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 TEAM_ID BUNDLE_ID; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing configuration:$missing. Secrets ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 and variables APPLE_TEAM_ID, BUNDLE_ID: see docs/TESTFLIGHT.md"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Toolchain versions
+        run: |
+          xcodebuild -version
+          rustc --version
+
+      - name: Rust target and cbindgen
+        run: |
+          rustup target add aarch64-apple-ios
+          brew install cbindgen
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ALVR/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('ALVR/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Build client core and xcframework
+        run: |
+          unset SDKROOT
+          rm -rf ALVR/build ALVR/alvr/server
+          CARGO_TARGET_DIR=ALVR/target cargo build --manifest-path ALVR/Cargo.toml \
+            --target=aarch64-apple-ios -p alvr_client_core --profile distribution
+          mkdir -p ALVR/build
+          (cd ALVR/alvr/client_core && cbindgen --config cbindgen.toml --crate alvr_client_core --output ../../build/alvr_client_core.h)
+          sh repack_alvr_client.sh
+
+      # The Metal toolchain is not preinstalled on the runner image.
+      - name: Metal toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
+
+      - name: App Store Connect API key
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          printf '%s\n' "$ASC_KEY_P8" > "$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8"
+          chmod 600 "$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8" >> "$GITHUB_ENV"
+
+      - name: Entitlements
+        run: |
+          mkdir -p build
+          cp ALVRClient/ALVRClient.entitlements build/AirFrameXR.entitlements
+          if [ "${{ inputs.low_latency_streaming }}" != "true" ]; then
+            /usr/libexec/PlistBuddy -c "Delete :com.apple.developer.low-latency-streaming" build/AirFrameXR.entitlements
+          fi
+          cat build/AirFrameXR.entitlements
+
+      - name: Archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project ALVRClient.xcodeproj -scheme ALVRClient -configuration Release \
+            -destination 'generic/platform=visionOS' \
+            -archivePath build/AirFrameXR.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_ENTITLEMENTS="$PWD/build/AirFrameXR.entitlements" \
+            MARKETING_VERSION="${{ inputs.marketing_version }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            2>&1 | tee build/archive.log
+
+      - name: Export and upload to TestFlight
+        run: |
+          set -o pipefail
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath build/AirFrameXR.xcarchive \
+            -exportOptionsPlist build/ExportOptions.plist \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee build/export.log
+
+      - name: Remove the API key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testflight-logs
+          path: build/*.log
+          if-no-files-found: ignore

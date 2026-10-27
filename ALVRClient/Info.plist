@@ -20,15 +20,15 @@
 		<string>_alvr._tcp</string>
 	</array>
 	<key>NSHandsTrackingUsageDescription</key>
-	<string>ALVR would like to send hand positions and skeletons to SteamVR.</string>
+	<string>AirFrameXR sends your hand positions and finger joints to the streamer so games can use your hands.</string>
 	<key>NSWorldSensingUsageDescription</key>
-	<string>ALVR would like to scan your surroundings for obstacles and playspace boundaries.</string>
+	<string>AirFrameXR scans your surroundings to warn you before you walk into obstacles and to place the play area.</string>
 	<key>NSAccessoryTrackingUsageDescription</key>
-	<string>ALVR would like to send spatial accessory positions to SteamVR.</string>
+	<string>AirFrameXR sends the position of spatial controllers to the streamer.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>ALVR would like to connect to Steam Controllers, which are not visible to the system as standard game controllers.</string>
+	<string>AirFrameXR connects to Steam Controllers, which are not visible to the system as standard game controllers.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>ALVR would like to track and send face tracking data to SteamVR, using your Spatial Persona camera.</string>
+	<string>AirFrameXR can send face tracking data to the streamer, using your Spatial Persona camera.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationPreferredDefaultSceneSessionRole</key>
