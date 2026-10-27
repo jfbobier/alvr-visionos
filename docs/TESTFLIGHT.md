@@ -4,6 +4,10 @@ The **TestFlight** workflow (`.github/workflows/testflight.yml`) builds the clie
 Connect. It is started by hand: **Actions > TestFlight > Run workflow**. Setup is done once, by whoever holds the Apple
 Developer account.
 
+**In short:** (1) in the Apple websites, make the app and an API key; (2) fork the project on GitHub and paste five
+values; (3) press **Run workflow**. Each part below is a step-by-step with where to click.
+Original project: https://github.com/jfbobier/alvr-visionos
+
 **Use an App Store Connect API key, not the Apple ID.** An Apple ID needs a password and a two-factor code, neither
 works in CI. The API key is made for it and can be revoked at any time.
 
@@ -80,29 +84,71 @@ The first upload takes 10 to 20 minutes to be "processed"; you get an email. The
 
 ## One-time setup (GitHub)
 
-Only the **owner** of a repository can add secrets, and on a personal account a collaborator is never an owner. So the
-person who holds the Apple account **forks this repository into their own account** and does everything below there
-(the key then never leaves their account):
+GitHub keeps the secrets, so you need your **own copy** of this project on your GitHub account: a **fork**. (Only the
+owner of a repository can store secrets in it, and the secrets must stay yours anyway.) Nothing here needs any
+programming: it is clicking and pasting. `<you>` below is your GitHub user name.
 
-1. Open the repository page and click **Fork**, keep the default branch name.
-2. In the fork, open the **Actions** tab and click **I understand my workflows, go ahead and enable them**.
-3. In the fork, open **Settings > Secrets and variables > Actions** and add:
+### A. Make your copy (fork)
 
-| Kind | Name | Value |
-|---|---|---|
-| Secret | `ASC_KEY_ID` | the Key ID |
-| Secret | `ASC_ISSUER_ID` | the Issuer ID |
-| Secret | `ASC_KEY_P8` | the whole `.p8` file, `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----` lines included |
-| Variable | `APPLE_TEAM_ID` | the Team ID |
-| Variable | `BUNDLE_ID` | the bundle ID |
+1. Sign in to https://github.com (create a free account if you have none).
+2. Open **https://github.com/jfbobier/alvr-visionos**.
+3. At the top right of the page, click **Fork** (the button with the little branching icon).
+4. On the next page leave everything as it is, make sure **Owner** is your own user name, and click the green
+   **Create fork**. After a few seconds you are on `https://github.com/<you>/alvr-visionos`: that is your copy.
+   Everything below happens there, not on the original.
 
-If a value is missing, the first step of the workflow says which one.
+### B. Switch on the automatic builds in your copy
 
-To get new changes later, use **Sync fork** on the fork's page.
+GitHub turns them off in new forks.
+
+1. In your copy, click the **Actions** tab (top menu, next to Pull requests).
+2. Click the green **I understand my workflows, go ahead and enable them**.
+
+### C. Enter the five values
+
+Open **https://github.com/`<you>`/alvr-visionos/settings/secrets/actions** (or: your copy > **Settings** (top menu,
+far right) > on the left **Secrets and variables** > **Actions**). Use the values from the checklist above.
+
+Secrets (the **Secrets** tab, button **New repository secret**; click it once per secret, then **Add secret**):
+
+| Name (type it exactly) | Value |
+|---|---|
+| `ASC_KEY_ID` | the Key ID |
+| `ASC_ISSUER_ID` | the Issuer ID |
+| `ASC_KEY_P8` | open the `.p8` file with Notepad or TextEdit, select everything (Ctrl+A / Cmd+A), copy, paste. It must include the `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----` lines |
+
+Variables (the **Variables** tab next to Secrets, button **New repository variable**, then **Add variable**):
+
+| Name (type it exactly) | Value |
+|---|---|
+| `APPLE_TEAM_ID` | the Team ID |
+| `BUNDLE_ID` | the bundle ID |
+
+Names are case sensitive. If one is wrong or missing, the first step of the build stops and tells you which.
+
+### D. Try it without Apple first (optional, 30 seconds of clicking)
+
+1. Your copy > **Actions** tab > on the left, click **TestFlight**.
+2. Click **Run workflow** (a grey button on the right), tick **Only check that the Release archive builds**, and click
+   the green **Run workflow**.
+3. Refresh the page after a few seconds: a new line appears. Click it. After about 10 to 15 minutes a green tick means
+   the app builds. (A red cross: send the page's link to whoever helps you.)
+
+### E. Upload to TestFlight
+
+Same place: **Actions** > **TestFlight** > **Run workflow**, this time leave the check box **unticked**, optionally
+change the version number, and click the green **Run workflow**. Direct link:
+**https://github.com/`<you>`/alvr-visionos/actions/workflows/testflight.yml**. A green tick after about 20 to 30
+minutes means the build is at Apple; the email "has completed processing" follows.
+
+### Getting newer versions of the app later
+
+On your copy's main page there is a **Sync fork** button (under the green Code button, above the file list): click it,
+then **Update branch**. Then run the workflow again (step E).
 
 ## Each release
 
-1. In the fork: **Actions > TestFlight > Run workflow.** Choose the version shown in TestFlight (default `0.1.0`). The build number is
+1. In your copy: **Actions > TestFlight > Run workflow** (step E). Choose the version shown in TestFlight (default `0.1.0`). The build number is
    the run number, so it always goes up.
 2. Wait for the run (about 20 to 30 minutes), then for App Store Connect to process the build (about 10 more).
 3. App Store Connect > your app > **TestFlight** (see "After the first upload" above for compliance and testers).
