@@ -1,6 +1,6 @@
 /*
 Abstract:
-The Entry content for a volume.
+The Entry content for a volume: connection status, the two settings that matter and the Enter button.
 */
 
 import SwiftUI
@@ -10,63 +10,13 @@ struct Entry: View {
     @ObservedObject var eventHandler = EventHandler.shared
     @EnvironmentObject var gStore: GlobalSettingsStore
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.self) var environment
-    @Environment(\.openWindow) private var openWindow
     let saveAction: ()->Void
-    
-    let refreshRatesPost20 = ["Default", "90", "96", "100", "120"]
-    let refreshRatesPre20 = ["Default", "90", "96"]
-    
-    let chromaFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        return formatter
-    }()
-    
-    @State private var chromaRangeMaximum: Float = 1.0
 
-    // Derived from gStore so the swatch always reflects the persisted color.
-    // A separate @State copy silently drifts if nothing syncs it (see git history).
-    private var chromaKeyColor: Binding<Color> {
+    private var headLookaheadMs: Binding<Double> {
         Binding(
-            get: {
-                Color(.sRGB,
-                      red: Double(gStore.settings.chromaKeyColorR),
-                      green: Double(gStore.settings.chromaKeyColorG),
-                      blue: Double(gStore.settings.chromaKeyColorB))
-            },
-            set: { newValue in
-                let resolved = newValue.resolve(in: environment)
-                gStore.settings.chromaKeyColorR = min(max(resolved.red, 0.0), 1.0)
-                gStore.settings.chromaKeyColorG = min(max(resolved.green, 0.0), 1.0)
-                gStore.settings.chromaKeyColorB = min(max(resolved.blue, 0.0), 1.0)
-                saveAction()
-            }
+            get: { Double(gStore.settings.headLookaheadMs) },
+            set: { gStore.settings.headLookaheadMs = Int($0.rounded()) }
         )
-    }
-    func applyRangeSettings() {
-        if gStore.settings.chromaKeyDistRangeMax < 0.001 {
-            gStore.settings.chromaKeyDistRangeMax = 0.001
-        }
-        if gStore.settings.chromaKeyDistRangeMax > 1.0 {
-            gStore.settings.chromaKeyDistRangeMax = 1.0
-        }
-        if gStore.settings.chromaKeyDistRangeMin < 0.0 {
-            gStore.settings.chromaKeyDistRangeMin = 0.0
-        }
-        if gStore.settings.chromaKeyDistRangeMin > 1.0 {
-            gStore.settings.chromaKeyDistRangeMin = 1.0
-        }
-        
-        if gStore.settings.chromaKeyDistRangeMin > gStore.settings.chromaKeyDistRangeMax {
-            gStore.settings.chromaKeyDistRangeMin = gStore.settings.chromaKeyDistRangeMax - 0.001
-        }
-        chromaRangeMaximum = gStore.settings.chromaKeyDistRangeMax
-        saveAction()
-    }
-    
-    func applyStreamHz() {
-        VideoHandler.applyRefreshRate(videoFormat: EventHandler.shared.videoFormat)
     }
 
     var body: some View {
@@ -75,10 +25,10 @@ struct Entry: View {
                 Image(.alvrCombinedLogoHqLight)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .accessibilityLabel("ALVR logo")
+                .accessibilityLabel("AirFrameXR logo")
                 .frame(maxWidth: .infinity, maxHeight: 150)
                 .padding(.top)
-                
+
                 if eventHandler.alvrVersion != "" {
                     Text(eventHandler.alvrVersion)
                         .font(.system(size: 20, weight: .bold))
@@ -87,7 +37,7 @@ struct Entry: View {
                     Text("Loading settings...")
                         .font(.system(size: 20, weight: .bold))
                 }
-                
+
                 VStack {
                     Text(eventHandler.connectionFlavorText)
                         .font(.system(size: 15))
@@ -95,308 +45,41 @@ struct Entry: View {
                 .frame( maxWidth: .infinity, minHeight: 50, maxHeight: 50, alignment: .top)
             }
             .frame(minHeight: 200)
-            
-            TabView {
-                VStack {
-                    Text("Main Settings:")
-                        .font(.system(size: 20, weight: .bold))
-                    Toggle(isOn: $gStore.settings.showHandsOverlaid) {
-                        Text("Show hands overlaid")
-                    }
-                    .toggleStyle(.switch)
-                    
-                    Toggle(isOn: $gStore.settings.disablePersistentSystemOverlays) {
-                        Text("Disable persistent system overlays (palm gesture)")
-                    }
-                    .toggleStyle(.switch)
-                  
-                    Toggle(isOn: $gStore.settings.keepSteamVRCenter) {
-                        Text("Crown Button long-press ignored by SteamVR")
-                    }
-                    .toggleStyle(.switch)
-                    
-                    Toggle(isOn: $gStore.settings.enableDoubleTapForHands) {
-                        Text("Clack controllers together twice while looking at them to switch to hand tracking")
-                    }
-                    .toggleStyle(.switch)
-                    
-                    Toggle(isOn: $gStore.settings.emulatedPinchInteractions) {
-                        Text("Send gaze-pinch interactions as controller inputs")
-                    }
-                    .toggleStyle(.switch)
-                    
-                    Toggle(isOn: $gStore.settings.claimControllerHomeButton) {
-                        Text("Send the controller PS/Home button to games")
-                    }
-                    .toggleStyle(.switch)
-                    if gStore.settings.claimControllerHomeButton {
-                        ControllerHomeButtonHint()
-                    }
-                    
-                    HStack {
-                        Text("Stream refresh rate*")
-                        Picker("Stream refresh rate", selection: $gStore.settings.streamFPS) {
-                            if #unavailable(visionOS 2.0) {
-                                ForEach(refreshRatesPre20, id: \.self) {
-                                    Text($0)
-                                }
-                            }
-                            else {
-                                ForEach(refreshRatesPost20, id: \.self) {
-                                    Text($0)
-                                }
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .onChange(of: gStore.settings.streamFPS) {
-                            applyStreamHz()
-                        }
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                    if #unavailable(visionOS 2.0) {
-                        Text("*Higher refresh rates cause skipping when displaying 30P content, or judder while passthrough is active")
-                            .font(.system(size: 10))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    else {
-                        Text("*Higher refresh rates cause skipping when displaying 30P content")
-                            .font(.system(size: 10))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .frame(minWidth: 450)
-                .padding()
-                .tabItem {
-                    Label("Main Settings", systemImage: "network")
-                }
 
-                ScrollView {
-                    VStack {
-                        Text("Advanced Settings:")
-                            .font(.system(size: 20, weight: .bold))
-                    
-                        Toggle(isOn: $gStore.settings.chromaKeyEnabled) {
-                            Text("Enable Chroma Keyed Passthrough")
-                        }
-                        .toggleStyle(.switch)
-                        .onChange(of: gStore.settings.chromaKeyEnabled) {
-                            saveAction()
-                        }
-                    
-                        Toggle(isOn: $gStore.settings.chromaKeyFromStreamer) {
-                            Text("Use the streamer's chroma key")
-                            Text("*Applies the PC's Passthrough chroma key settings unless the key above is enabled")
-                            .font(.system(size: 10))
-                        }
-                        .toggleStyle(.switch)
-                        .onChange(of: gStore.settings.chromaKeyFromStreamer) {
-                            saveAction()
-                        }
-                    
-                        ColorPicker("Chroma Key Color", selection: chromaKeyColor)
-                        
-                        Text("Chroma Blend Distance Min/Max").frame(maxWidth: .infinity, alignment: .leading)
-                        HStack {
-                           Slider(value: $gStore.settings.chromaKeyDistRangeMin,
-                                  in: 0...chromaRangeMaximum,
-                                  step: 0.01) {
-                               Text("Chroma Blend Distance Min")
-                           }
-                           .onChange(of: gStore.settings.chromaKeyDistRangeMin) {
-                               applyRangeSettings()
-                           }
-                           TextField("Chroma Blend Distance Min", value: $gStore.settings.chromaKeyDistRangeMin, formatter: chromaFormatter)
-                           .textFieldStyle(RoundedBorderTextFieldStyle())
-                           .onChange(of: gStore.settings.chromaKeyDistRangeMin) {
-                               applyRangeSettings()
-                           }
-                           .frame(width: 100)
-                        }
-                        HStack {
-                           Slider(value: $gStore.settings.chromaKeyDistRangeMax,
-                                  in: 0.001...1,
-                                  step: 0.01) {
-                               Text("Chroma Blend Distance Max")
-                           }
-                           .onChange(of: gStore.settings.chromaKeyDistRangeMax) {
-                               applyRangeSettings()
-                           }
-                           TextField("Chroma Blend Distance Max", value: $gStore.settings.chromaKeyDistRangeMax, formatter: chromaFormatter)
-                           .textFieldStyle(RoundedBorderTextFieldStyle())
-                           .onChange(of: gStore.settings.chromaKeyDistRangeMax) {
-                               applyRangeSettings()
-                           }
-                           .frame(width: 100)
-                        }
-                        Toggle(isOn: $gStore.settings.dismissWindowOnEnter) {
-                            Text("Dismiss this window on entry")
-                        }
-                        .toggleStyle(.switch)
-                        
-                        HStack {
-                            Text("Visible field of view")
-                            Picker("Visible field of view", selection: $gStore.settings.visibleFovLimit) {
-                                Text("Off").tag("off")
-                                Text("Tight").tag("tight")
-                                Text("Measured (+3°)").tag("measured")
-                                Text("Safer (+5°)").tag("safer")
-                            }
-                            .pickerStyle(.menu)
-                            .onChange(of: gStore.settings.visibleFovLimit) {
-                                saveAction()
-                            }
-                        }
-                        Text("Tells the streamer only the angles the panel can show (measured on one Vision Pro). Less to render, encode and decode. Reconnect after changing.")
-                            .font(.system(size: 10))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Text("FoV Scale").frame(maxWidth: .infinity, alignment: .leading)
-                        HStack {
-                           Slider(value: $gStore.settings.fovRenderScale,
-                                  in: 0.2...1.6,
-                                  step: 0.1) {
-                               Text("FoV Scale")
-                           }
-                           .onChange(of: gStore.settings.fovRenderScale) {
-                               applyRangeSettings()
-                           }
-                           TextField("FoV Scale", value: $gStore.settings.fovRenderScale, formatter: chromaFormatter)
-                           .textFieldStyle(RoundedBorderTextFieldStyle())
-                           .onChange(of: gStore.settings.fovRenderScale) {
-                               applyRangeSettings()
-                           }
-                           .frame(width: 100)
-                        }
-                        Text("Increase FoV for timewarp comfort, or sacrifice FoV for sharpness")
-                            .font(.system(size: 10))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        HStack {
-                            Text("Head prediction ahead")
-                            Picker("Head prediction ahead", selection: $gStore.settings.headLookaheadMs) {
-                                Text("Off").tag(0)
-                                Text("10 ms").tag(10)
-                                Text("20 ms").tag(20)
-                                Text("30 ms").tag(30)
-                            }
-                            .pickerStyle(.menu)
-                            .onChange(of: gStore.settings.headLookaheadMs) {
-                                saveAction()
-                            }
-                        }
-                        Text("Experimental: sends the head pose predicted this far past the display time (starts at 30 ms: lower it if the picture swims). Independent of the display's refresh rate.")
-                            .font(.system(size: 10))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Toggle(isOn: $gStore.settings.targetHandsAtRoundtripLatency) {
-                            Text("Target hand prediction at round-trip latency (may cause jittering)")
-                        }
-                        .toggleStyle(.switch)
-
-                        Toggle(isOn: Binding(
-                            get: { gStore.settings.chaperoneDistanceCm > 0 },
-                            set: { isOn in
-                                gStore.settings.chaperoneDistanceCm = isOn ? 30 : 0
-                                saveAction()
-                            }
-                        )) {
-                            Text("Proximity Chaperone")
-                            Text("Highlights nearby objects when you get too close.")
-                                .font(.system(size: 10))
-                        }
-                        .toggleStyle(.switch)
-
-                        if gStore.settings.chaperoneDistanceCm > 0 {
-                            Text("Chaperone Distance").frame(maxWidth: .infinity, alignment: .leading)
-                            HStack {
-                               Slider(value: Binding(
-                                   get: { Double(gStore.settings.chaperoneDistanceCm) },
-                                   set: { newValue in
-                                       let rounded = Int(newValue.rounded())
-                                       // Snap invalid values: if between 1-29, snap to 30
-                                       if rounded > 0 && rounded < 30 {
-                                           gStore.settings.chaperoneDistanceCm = 30
-                                       } else {
-                                           gStore.settings.chaperoneDistanceCm = rounded
-                                       }
-                                   }
-                               ),
-                               in: 30...60,
-                               step: 5) {
-                                   Text("Chaperone Distance")
-                               }
-                               .onChange(of: gStore.settings.chaperoneDistanceCm) {
-                                   saveAction()
-                               }
-
-                               Text("\(gStore.settings.chaperoneDistanceCm) cm")
-                                   .frame(width: 60, alignment: .trailing)
-                                   .foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        Toggle(isOn: $gStore.settings.showPerformanceHud) {
-                            Text("Performance HUD")
-                            Text("Shows a performance panel anchored to your left forearm.")
-                                .font(.system(size: 10))
-                        }
-                        .toggleStyle(.switch)
-                        .onChange(of: gStore.settings.showPerformanceHud) {
-                            saveAction()
-                        }
-
-                        Button {
-                            openWindow(id: "InputDebug")
-                        } label: {
-                            Label("Controller Input Debug", systemImage: "gamecontroller")
-                        }
-                        .padding(.top)
-                    }
-                    .frame(minWidth: 450)
-                    .padding()
-                }
-                .tabItem {
-                    Label("Advanced Settings", systemImage: "gearshape")
-                }
-
-                VStack {
-                    Text("Help and Information:")
-                        .font(.system(size: 20, weight: .bold))
-                    Text("Need help setting up your PC for ALVR? Check out our getting started guide at:")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    Link("https://github.com/alvr-org/ALVR/wiki/Installation-guide", destination: URL(string: "https://github.com/alvr-org/ALVR/wiki/Installation-guide")!)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    //.hoverEffect()
-                    Text("Having trouble connecting? Framerate issues or stuttering? Check out our troubleshooting guide at:")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    Link("https://github.com/alvr-org/ALVR/wiki/Troubleshooting", destination: URL(string: "https://github.com/alvr-org/ALVR/wiki/Troubleshooting")!)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    Text("We also have Discord and Matrix chats for more complex troubleshooting and development discussion:")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    Link("https://discord.gg/ALVR", destination: URL(string: "https://discord.gg/ALVR")!)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    Link("https://matrix.to/#/#alvr:ckie.dev?via=ckie.dev", destination: URL(string: "https://matrix.to/#/#alvr:ckie.dev?via=ckie.dev")!)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    Text("\n\nALVR is licensed under the MIT license.\nCopyright (c) 2018-2019 polygraphene\nCopyright (c) 2020-2024 alvr-org")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    Link("Click here for full license information", destination: URL(string: "https://raw.githubusercontent.com/alvr-org/ALVR/master/LICENSE")!)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(width: 450)
-                .padding()
-                .tabItem {
-                    Label("Help and Information", systemImage: "questionmark.circle")
-                }
-            }
-            .frame(minHeight: 600)
-            .padding(.horizontal)
-            
             VStack {
-                Text("Connection Information:")
-                    .font(.system(size: 20, weight: .bold))
-                
+                Text(gStore.settings.headLookaheadMs > 0 ? "Head prediction ahead: \(gStore.settings.headLookaheadMs) ms" : "Head prediction ahead: off")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Slider(value: headLookaheadMs, in: 0...30, step: 5) {
+                    Text("Head prediction ahead")
+                }
+                .onChange(of: gStore.settings.headLookaheadMs) {
+                    saveAction()
+                }
+                Text("Experimental: the head pose sent to the streamer is predicted this far past the display time. Lower it if the picture swims. Takes effect at once.")
+                    .font(.system(size: 10))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack {
+                    Text("Visible field of view")
+                    Picker("Visible field of view", selection: $gStore.settings.visibleFovLimit) {
+                        Text("Off").tag("off")
+                        Text("Tight").tag("tight")
+                        Text("Measured (+3°)").tag("measured")
+                        Text("Safer (+5°)").tag("safer")
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: gStore.settings.visibleFovLimit) {
+                        saveAction()
+                    }
+                }
+                .padding(.top)
+                Text("Tells the streamer only the angles the panel can show (measured on one Vision Pro). If an edge of the picture is cut off, pick Safer. Reconnect after changing.")
+                    .font(.system(size: 10))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal)
+
+            VStack {
                 if eventHandler.hostname != "" && eventHandler.IP != "" {
                     let columns = [
                         GridItem(.fixed(150), alignment: .trailing),
@@ -408,8 +91,6 @@ struct Entry: View {
                         Text(eventHandler.hostname)
                         Text("IP:")
                         Text(eventHandler.IP)
-                        Text("Client Protocol:")
-                        Text(eventHandler.getMdnsProtocolId())
                         Text("Streamer Version:")
                         if eventHandler.hostAlvrVersion != "" {
                             Text(eventHandler.hostAlvrVersion)
@@ -417,65 +98,25 @@ struct Entry: View {
                         else {
                             Text("Disconnected")
                         }
-                        Text("")
-                        Text("")
                     }
-                    .frame(width: 250, alignment: .center)
-                    .padding(.bottom)
+                    .frame(width: 300, alignment: .center)
+                    .padding(.vertical)
                 }
             }
-            .frame(minHeight: 170)
         }
         .frame(minWidth: 650, maxWidth: 650)
         .glassBackgroundEffect()
         .onChange(of: scenePhase) {
             switch scenePhase {
-            case .background:
+            case .background, .inactive:
                 saveAction()
-                break
-            case .inactive:
-                saveAction()
-                break
             case .active:
                 break
             @unknown default:
                 break
             }
         }
-        .task({
-            applyRangeSettings()
-        })
-        
+
         EntryControls(saveAction: saveAction)
-    }
-}
-
-
-/// Explains what the user has to switch in visionOS Settings so the controller Home (PS) button reaches games.
-struct ControllerHomeButtonHint: View {
-    @ObservedObject var status = ControllerHomeButtonStatus.shared
-
-    var body: some View {
-        Group {
-            switch status.state {
-            case .systemHandles:
-                HStack {
-                    Text("visionOS still handles the PS button. Set the controller in-app action to \"Defer to app\".")
-                        .font(.footnote)
-                    Button("Open Settings") {
-                        status.openSettings()
-                    }
-                }
-            case .deliveredToApp:
-                Text("The PS button is sent to games.")
-                    .font(.footnote)
-            case .unknown:
-                EmptyView()
-            }
-        }
-        .task {
-            // Reading the setting needs a connected controller; this stays unknown until one is.
-            status.start()
-        }
     }
 }
