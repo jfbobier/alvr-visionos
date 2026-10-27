@@ -9,13 +9,74 @@ works in CI. The API key is made for it and can be revoked at any time.
 
 ## One-time setup (Apple)
 
-1. **Bundle ID.** Pick one, e.g. `com.yourname.airframexr` (reverse-domain, unique to your team).
-2. **App record.** App Store Connect > Apps > **+ New App**: platform **visionOS**, name *AirFrameXR*, your bundle ID,
-   any SKU. The upload is refused until this exists.
-3. **API key.** App Store Connect > Users and Access > Integrations > **App Store Connect API** > Team Keys > **+**,
-   access **Admin** (Xcode needs it to create the distribution certificate and profile for you). Download the `.p8`
-   file (only possible once) and note the **Key ID** and the **Issuer ID** shown above the table.
-4. **Team ID.** developer.apple.com > Membership details: the 10-character Team ID.
+Do this in a web browser, signed in with the Apple ID of the developer account. It takes about 15 minutes. Menu names
+can shift a little between Apple updates; the words in **bold** are what to look for. You will end with five values
+(the checklist at the end of this part).
+
+**Before you start:** the account must be an active **Apple Developer Program** membership (99 USD a year). Open
+https://developer.apple.com/account and accept any agreement banner at the top ("Review Agreement"). Without that,
+nothing below works. The person doing this must be the **Account Holder** or an **Admin**.
+
+### 1. Choose and register the bundle ID
+
+The bundle ID is the app's unique name, like a web address backwards. Example: `com.yourname.airframexr` (use your own
+name or handle; letters, digits, dots and hyphens only). Pick it once; it cannot be changed later.
+
+1. https://developer.apple.com/account > **Certificates, Identifiers & Profiles** > **Identifiers** > the blue **+**.
+2. Choose **App IDs**, **Continue**, then **App**, **Continue**.
+3. **Description**: `AirFrameXR`. **Bundle ID**: choose **Explicit** and type your bundle ID.
+4. Leave the capabilities as they are, **Continue**, **Register**.
+
+(The next step only offers bundle IDs that are registered, which is why this comes first.)
+
+### 2. Create the app in App Store Connect
+
+1. https://appstoreconnect.apple.com > **Apps** > the **+** (top left) > **New App**.
+2. **Platforms**: tick **visionOS**. **Name**: `AirFrameXR` (it must be unique on the whole App Store; if Apple says it is
+   taken, use `AirFrameXR Client`: the name is only shown to testers and can be changed later). **Primary Language**:
+   English. **Bundle ID**: pick the one from step 1. **SKU**: any text you like, e.g. `airframexr-client` (never shown).
+   **User Access**: Full Access.
+3. **Create**. You can leave every other page of the app empty: TestFlight does not need a description or screenshots.
+
+### 3. Create the API key (this is what lets GitHub upload for you)
+
+1. App Store Connect > **Users and Access** > the **Integrations** tab > **App Store Connect API** on the left.
+   (The first time, an **Account Holder** has to click **Request Access** and accept the terms.)
+2. Open **Team Keys** and click the **+** (or **Generate API Key**).
+3. **Name**: `GitHub TestFlight`. **Access**: **Admin**. Click **Generate**.
+4. In the table, click **Download API Key** next to your new key. **You can download it only once.** You get a file
+   named `AuthKey_XXXXXXXXXX.p8`; the ten characters in its name are the **Key ID** (also shown in the table).
+5. At the top of the same page, copy the **Issuer ID** (a long code like `69a6de80-...`).
+6. Keep the `.p8` file somewhere safe (a password manager is ideal). Anyone who has it and the two IDs can upload builds
+   to this team, so never post it. If it leaks: the same page lets you **Revoke** the key at any time.
+
+### 4. Find the Team ID
+
+https://developer.apple.com/account > **Membership details** > **Team ID** (10 characters, letters and digits).
+
+### Checklist: the five values for the next part
+
+| You need | Where you got it |
+|---|---|
+| Key ID | the file name `AuthKey_<this>.p8`, or the key table (step 3) |
+| Issuer ID | top of the App Store Connect API page (step 3) |
+| the `.p8` file | the download in step 3 (open it with a text editor and copy everything) |
+| Team ID | Membership details (step 4) |
+| Bundle ID | the one you registered (step 1) |
+
+### After the first upload: add testers
+
+The first upload takes 10 to 20 minutes to be "processed"; you get an email. Then in App Store Connect > your app >
+**TestFlight**:
+
+- The build shows a yellow **Manage** / "Missing Compliance" warning: click it and answer the encryption question once
+  (the app only uses the standard encryption of the operating system's network stack).
+- **Internal testers** (fast, no review): people you add under **Users and Access** (they need an Apple ID and are given
+  a role there, e.g. **Developer**). Then in TestFlight, **Internal Testing** > **+** > a group > add them. They
+  install the **TestFlight** app on the Vision Pro and the build appears.
+- **External testers** (a Discord group, for example; they need only an email address or a link and no developer
+  account): **External Testing** > **+** > a group > **Enable Public Link** to share one link. The first build of a
+  version goes through a short **Beta App Review** (usually under a day).
 
 ## One-time setup (GitHub)
 
@@ -44,9 +105,7 @@ To get new changes later, use **Sync fork** on the fork's page.
 1. In the fork: **Actions > TestFlight > Run workflow.** Choose the version shown in TestFlight (default `0.1.0`). The build number is
    the run number, so it always goes up.
 2. Wait for the run (about 20 to 30 minutes), then for App Store Connect to process the build (about 10 more).
-3. App Store Connect > your app > **TestFlight**. Answer the export-compliance question the first time. Add testers:
-   **internal** testers (people on your team, up to 100) get the build at once; **external** testers need a short
-   Beta App Review first.
+3. App Store Connect > your app > **TestFlight** (see "After the first upload" above for compliance and testers).
 
 ## Check the build first (optional, no secrets)
 
