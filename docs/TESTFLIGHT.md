@@ -19,7 +19,13 @@ works in CI. The API key is made for it and can be revoked at any time.
 
 ## One-time setup (GitHub)
 
-Repository **Settings > Secrets and variables > Actions** (this needs admin rights on the repository):
+Only the **owner** of a repository can add secrets, and on a personal account a collaborator is never an owner. So the
+person who holds the Apple account **forks this repository into their own account** and does everything below there
+(the key then never leaves their account):
+
+1. Open the repository page and click **Fork**, keep the default branch name.
+2. In the fork, open the **Actions** tab and click **I understand my workflows, go ahead and enable them**.
+3. In the fork, open **Settings > Secrets and variables > Actions** and add:
 
 | Kind | Name | Value |
 |---|---|---|
@@ -31,9 +37,11 @@ Repository **Settings > Secrets and variables > Actions** (this needs admin righ
 
 If a value is missing, the first step of the workflow says which one.
 
+To get new changes later, use **Sync fork** on the fork's page.
+
 ## Each release
 
-1. **Actions > TestFlight > Run workflow.** Choose the version shown in TestFlight (default `0.1.0`). The build number is
+1. In the fork: **Actions > TestFlight > Run workflow.** Choose the version shown in TestFlight (default `0.1.0`). The build number is
    the run number, so it always goes up.
 2. Wait for the run (about 20 to 30 minutes), then for App Store Connect to process the build (about 10 more).
 3. App Store Connect > your app > **TestFlight**. Answer the export-compliance question the first time. Add testers:
