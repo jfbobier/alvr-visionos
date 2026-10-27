@@ -284,7 +284,7 @@ struct Entry: View {
                                 saveAction()
                             }
                         }
-                        Text("Experimental: sends the head pose predicted this far past the display time. Independent of the display's refresh rate.")
+                        Text("Experimental: sends the head pose predicted this far past the display time (starts at 30 ms: lower it if the picture swims). Independent of the display's refresh rate.")
                             .font(.system(size: 10))
                             .frame(maxWidth: .infinity, alignment: .leading)
 

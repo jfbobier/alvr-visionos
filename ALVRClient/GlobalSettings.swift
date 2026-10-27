@@ -33,8 +33,8 @@ struct GlobalSettings: Codable {
     var chaperoneDistanceCm: Int = 0
     var showPerformanceHud: Bool = false
     var claimControllerHomeButton: Bool = true
-    /// Milliseconds the head pose sent to the streamer is predicted past the display time of the current frame. 0 = off.
-    var headLookaheadMs: Int = 0
+    /// Milliseconds the head pose sent to the streamer is predicted past the display time of the current frame (10, 20 or 30; 0 = off). Starts at the maximum, to be ratcheted down.
+    var headLookaheadMs: Int = 30
     
     init() {}
     
