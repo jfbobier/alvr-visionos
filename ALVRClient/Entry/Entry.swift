@@ -29,6 +29,13 @@ struct Entry: View {
         return String(format: "%.2f m", head)
     }
 
+    private var gameHeight: String {
+        guard let head = floorReadout.headY else {
+            return "–"
+        }
+        return String(format: "%.2f m", head + Float(gStore.settings.heightOffsetCm) / 100.0)
+    }
+
     var body: some View {
         VStack(spacing: 20) {
         VStack {
@@ -74,7 +81,7 @@ struct Entry: View {
                         }
                     }
                 HStack {
-                    Text("Floor height offset")
+                    Text("+ Manual height offset")
                     Spacer()
                     Text(String(format: "%+d cm", gStore.settings.heightOffsetCm))
                 }
@@ -84,6 +91,12 @@ struct Entry: View {
                 }
                 .onChange(of: gStore.settings.heightOffsetCm) {
                     saveAction()
+                }
+                HStack {
+                    Text("= Height seen by the game")
+                    Spacer()
+                    Text(gameHeight)
+                        .foregroundStyle(floorReadingIsLive ? .primary : .secondary)
                 }
             }
             .padding(.horizontal)
