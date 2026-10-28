@@ -23,7 +23,7 @@ struct GlobalSettings: Codable {
     var chromaKeyColorB: Float = 16.0 / 255.0
     var dismissWindowOnEnter: Bool = true
     var emulatedPinchInteractions: Bool = false
-    /// Floor height offset correction in centimetres, added to whatever height the headset reports; positive raises the
+    /// Floor height offset in centimetres, added to whatever height the headset reports; positive raises the
     /// player in the game. 0 = the headset's reading as is.
     var heightOffsetCm: Int = 0
     /// Enter the streamer as soon as the connection is up, without pressing Enter.

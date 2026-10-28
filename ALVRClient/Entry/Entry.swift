@@ -22,13 +22,13 @@ struct Entry: View {
 
     private var floorReading: [String] {
         guard let head = floorReadout.headY else {
-            return ["Height readings appear here after your first session."]
+            return ["Height reading appears after your first session"]
         }
-        var lines = [String(format: "Last session, the headset read your head at %.2f m.", head)]
+        var lines = [String(format: "Headset reads your head at %.2f m", head)]
         if let floor = floorReadout.floorY {
-            lines.append(String(format: "The room scan put your head %.2f m above the floor it saw.", head - floor))
+            lines.append(String(format: "Room scan: head %.2f m above the floor", head - floor))
         } else {
-            lines.append("The room scan saw no floor.")
+            lines.append("Room scan: no floor seen")
         }
         return lines
     }
@@ -66,18 +66,15 @@ struct Entry: View {
                     Text(line)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Text(String(format: "Floor height offset correction: %+d cm", gStore.settings.heightOffsetCm))
+                Text(String(format: "Floor height offset: %+d cm", gStore.settings.heightOffsetCm))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top)
                 Slider(value: heightOffsetCm, in: -50...50, step: 1) {
-                    Text("Floor height offset correction")
+                    Text("Floor height offset")
                 }
                 .onChange(of: gStore.settings.heightOffsetCm) {
                     saveAction()
                 }
-                Text("Added to whatever height the headset reads (positive raises you in the game). Standing, the reading is usually right; seated it can be off and games then misplace you. Compare the readings with your real eye height and correct here. Takes effect at once.")
-                    .font(.system(size: 10))
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal)
             .padding(.top)
@@ -104,9 +101,6 @@ struct Entry: View {
                 .onChange(of: gStore.settings.autoConnect) {
                     saveAction()
                 }
-                Text("Auto-connect enters the stream as soon as the streamer connects. Leave it off if the streamer starts before you put the headset on.")
-                    .font(.system(size: 10))
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal)
             .padding(.top)
