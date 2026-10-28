@@ -40,6 +40,20 @@ struct EntryControls: View {
         .buttonStyle(.borderless)
         .glassBackgroundEffect(in: .rect(cornerRadius: 50))
 
+        // Auto-connect: enter when the streamer connects (the edge, not the level, so leaving the stream
+        // on purpose while still connected does not throw you back in), or when the switch is turned on
+        // while already connected.
+        .onChange(of: eventHandler.connectionState) { _, state in
+            if state == .connected && gStore.settings.autoConnect && !model.isShowingClient {
+                model.isShowingClient = true
+            }
+        }
+        .onChange(of: gStore.settings.autoConnect) { _, on in
+            if on && eventHandler.connectionState == .connected && !model.isShowingClient {
+                model.isShowingClient = true
+            }
+        }
+
         //Enable Client
         .onChange(of: model.isShowingClient) { _, isShowing in
             Task {

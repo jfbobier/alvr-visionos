@@ -2153,7 +2153,12 @@ class WorldTracker {
             if claimHomeButton {
                 // visionOS keeps the PS/Home button for itself unless the app asks to receive it (and the
                 // user allows it in Settings on visionOS 27).
-                controller.claimHomeButtonFromSystem()
+                let claimReport = controller.claimHomeButtonFromSystem()
+                if CACurrentMediaTime() - lastHomeButtonReport > 5.0 {
+                    lastHomeButtonReport = CACurrentMediaTime()
+                    let line = "[home] \(controller.vendorName ?? "?") \(claimReport) inAppAction=\(ControllerHomeButtonStatus.shared.state) buttons=\(controller.physicalInputProfile.allButtons.flatMap { $0.aliases }.sorted().joined(separator: ","))"
+                    line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_ERROR.rawValue), $0) }
+                }
                 if ControllerHomeButtonStatus.shared.state == .unknown && CACurrentMediaTime() - lastHomeButtonStatusAttempt > 2.0 {
                     lastHomeButtonStatusAttempt = CACurrentMediaTime()
                     Task { @MainActor in
@@ -2537,6 +2542,7 @@ class WorldTracker {
     
     var lastSentTime = 0.0
     var lastHomeButtonStatusAttempt = 0.0
+    var lastHomeButtonReport = 0.0
     
     // TODO: figure out how stable Apple's predictions are into the future
     // targetTimestamp: The timestamp of the pose we will send to ALVR--capped by how far we can predict forward.

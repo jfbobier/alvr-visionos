@@ -18,17 +18,28 @@ extension GCController {
 }
 
 extension GCController {
-    /// Asks visionOS not to act on the controller's Home (PS) button, so the press reaches the app.
+    /// Buttons the system may act on while an app is in front: Home (PS), and the menu-like ones (Menu, Options/Create, Share).
+    static let systemClaimedButtons = [GCInputButtonHome, GCInputButtonMenu, GCInputButtonOptions, GCInputButtonShare]
+
+    /// Asks visionOS not to act on the controller's Home and menu buttons, so the press reaches the app.
     ///
-    /// This is only a request: the system honors it when the user's "in-app action" for the controller
-    /// Home button is set to "Defer to app" in Settings (visionOS 27). See `ControllerHomeButtonStatus`.
-    func claimHomeButtonFromSystem() {
-        guard let home = physicalInputProfile.buttons[GCInputButtonHome] else {
-            return
+    /// This is only a request: for Home the system honors it when the user's "in-app action" is set to
+    /// "Defer to app" in Settings (visionOS 27). See `ControllerHomeButtonStatus`. Returns a one-line report
+    /// (which buttons exist and what they were set to) for the host log.
+    @discardableResult
+    func claimHomeButtonFromSystem() -> String {
+        var report = [String]()
+        for name in GCController.systemClaimedButtons {
+            guard let button = physicalInputProfile.buttons[name] else {
+                report.append("\(name)=absent")
+                continue
+            }
+            if button.preferredSystemGestureState != .disabled {
+                button.preferredSystemGestureState = .disabled
+            }
+            report.append("\(name)=\(button.preferredSystemGestureState == .disabled ? "claimed" : "refused")")
         }
-        if home.preferredSystemGestureState != .disabled {
-            home.preferredSystemGestureState = .disabled
-        }
+        return report.joined(separator: " ")
     }
 }
 

@@ -1,6 +1,6 @@
 /*
 Abstract:
-The Entry content for a volume: connection status, the two settings that matter and the Enter button.
+The Entry content for a volume: connection status, a few switches and the Enter button, in one column so nothing sits outside the window.
 */
 
 import SwiftUI
@@ -12,13 +12,6 @@ struct Entry: View {
     @Environment(\.scenePhase) private var scenePhase
     let saveAction: ()->Void
 
-    private var headLookaheadMs: Binding<Double> {
-        Binding(
-            get: { Double(gStore.settings.headLookaheadMs) },
-            set: { gStore.settings.headLookaheadMs = Int($0.rounded()) }
-        )
-    }
-
     private var heightOffsetCm: Binding<Double> {
         Binding(
             get: { Double(gStore.settings.heightOffsetCm) },
@@ -27,6 +20,7 @@ struct Entry: View {
     }
 
     var body: some View {
+        VStack(spacing: 20) {
         VStack {
             VStack {
                 Image(.alvrCombinedLogoHqLight)
@@ -54,52 +48,6 @@ struct Entry: View {
             .frame(minHeight: 200)
 
             VStack {
-                Text(gStore.settings.headLookaheadMs > 0 ? "Head prediction ahead: \(gStore.settings.headLookaheadMs) ms" : "Head prediction ahead: off")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Slider(value: headLookaheadMs, in: 0...30, step: 5) {
-                    Text("Head prediction ahead")
-                }
-                .onChange(of: gStore.settings.headLookaheadMs) {
-                    saveAction()
-                }
-                Text("Experimental: the head pose sent to the streamer is predicted this far past the display time. Lower it if the picture swims. Takes effect at once.")
-                    .font(.system(size: 10))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                HStack {
-                    Text("Visible field of view")
-                    Picker("Visible field of view", selection: $gStore.settings.visibleFovLimit) {
-                        Text("Off").tag("off")
-                        Text("Tight").tag("tight")
-                        Text("Measured (+3°)").tag("measured")
-                        Text("Safer (+5°)").tag("safer")
-                    }
-                    .pickerStyle(.menu)
-                    .onChange(of: gStore.settings.visibleFovLimit) {
-                        saveAction()
-                    }
-                }
-                .padding(.top)
-                Text("Tells the streamer only the angles the panel can show (measured on one Vision Pro). If an edge of the picture is cut off, pick Safer. Reconnect after changing.")
-                    .font(.system(size: 10))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text(String(format: "FoV Scale: %.2f", gStore.settings.fovRenderScale))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top)
-                Slider(value: $gStore.settings.fovRenderScale, in: 0.7...1.1, step: 0.05) {
-                    Text("FoV Scale")
-                }
-                .onChange(of: gStore.settings.fovRenderScale) {
-                    saveAction()
-                }
-                Text("Multiplies the visible field of view above, on every edge: 0.9 with Measured is about Tight. Less angle for the same stream, so denser pixels, but the margin is gone. Reconnect after changing.")
-                    .font(.system(size: 10))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal)
-
-            VStack {
                 Toggle(isOn: $gStore.settings.autoFloorHeight) {
                     Text("Floor from the room scan")
                 }
@@ -116,6 +64,35 @@ struct Entry: View {
                     saveAction()
                 }
                 Text("Puts the floor the headset found at height zero, so your height reads right in games. If you still stand too low or too high, correct it here (positive raises you). Takes effect at once.")
+                    .font(.system(size: 10))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal)
+            .padding(.top)
+
+            VStack {
+                Toggle(isOn: Binding(
+                    get: { gStore.settings.chaperoneDistanceCm > 0 },
+                    set: { gStore.settings.chaperoneDistanceCm = $0 ? 30 : 0; saveAction() }
+                )) {
+                    Text("Proximity chaperone")
+                }
+                .toggleStyle(.switch)
+                Toggle(isOn: $gStore.settings.showPerformanceHud) {
+                    Text("Performance HUD (left forearm)")
+                }
+                .toggleStyle(.switch)
+                .onChange(of: gStore.settings.showPerformanceHud) {
+                    saveAction()
+                }
+                Toggle(isOn: $gStore.settings.autoConnect) {
+                    Text("Auto-connect")
+                }
+                .toggleStyle(.switch)
+                .onChange(of: gStore.settings.autoConnect) {
+                    saveAction()
+                }
+                Text("Auto-connect enters the stream as soon as the streamer connects. Leave it off if the streamer starts before you put the headset on.")
                     .font(.system(size: 10))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -148,6 +125,7 @@ struct Entry: View {
             }
         }
         .frame(minWidth: 650, maxWidth: 650)
+        .padding(.bottom)
         .glassBackgroundEffect()
         .onChange(of: scenePhase) {
             switch scenePhase {
@@ -161,5 +139,6 @@ struct Entry: View {
         }
 
         EntryControls(saveAction: saveAction)
+        }
     }
 }

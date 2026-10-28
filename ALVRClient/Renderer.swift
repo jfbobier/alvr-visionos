@@ -780,10 +780,10 @@ class Renderer {
                 let transformRight = mainDrawable.views[1].transform
                 // Declare only what the panel can show (per edge, never more than the drawable's own); the streamer then
                 // renders, encodes and sends that window instead of the full frustum.
-                let limitedTangentsLeft = settings.visibleFovTangents(isLeftEye: true).map { simd_min(tangentsLeft, $0) } ?? tangentsLeft
-                let limitedTangentsRight = settings.visibleFovTangents(isLeftEye: false).map { simd_min(tangentsRight, $0) } ?? tangentsRight
-                let leftAngles = atan(limitedTangentsLeft * settings.fovRenderScale)
-                let rightAngles = mainDrawable.views.count > 1 ? atan(limitedTangentsRight * settings.fovRenderScale) : leftAngles
+                let limitedTangentsLeft = simd_min(tangentsLeft, GlobalSettings.visibleFovTangents(isLeftEye: true))
+                let limitedTangentsRight = simd_min(tangentsRight, GlobalSettings.visibleFovTangents(isLeftEye: false))
+                let leftAngles = atan(limitedTangentsLeft)
+                let rightAngles = mainDrawable.views.count > 1 ? atan(limitedTangentsRight) : leftAngles
                 let leftFov = AlvrFov(left: -leftAngles.x, right: leftAngles.y, up: leftAngles.z, down: -leftAngles.w)
                 let rightFov = AlvrFov(left: -rightAngles.x, right: rightAngles.y, up: rightAngles.z, down: -rightAngles.w)
                 

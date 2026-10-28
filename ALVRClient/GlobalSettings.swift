@@ -23,21 +23,19 @@ struct GlobalSettings: Codable {
     var chromaKeyColorB: Float = 16.0 / 255.0
     var dismissWindowOnEnter: Bool = true
     var emulatedPinchInteractions: Bool = false
-    var fovRenderScale: Float = 1.0
     /// Put the floor the room scan found at height zero for the game (the head height then reads right, seated or standing).
     var autoFloorHeight: Bool = true
     /// Manual height offset in centimetres, added on top; positive raises the player in the game.
     var heightOffsetCm: Int = 0
-    /// Per-edge limit of the field of view declared to the streamer, from the visible window measured on a Vision Pro
-    /// (docs/AVP_FOV.md in the AirFrameXR repo): "off", "tight", "measured" (visible + 3 deg), "safer" (visible + 5 deg).
-    var visibleFovLimit: String = "measured"
+    /// Enter the streamer as soon as the connection is up, without pressing Enter.
+    var autoConnect: Bool = false
     var targetHandsAtRoundtripLatency = false
     var showFaceTrackingDebug = false
     var lastUsedAppVersion = "never launched"
     var chaperoneDistanceCm: Int = 0
     var showPerformanceHud: Bool = false
     var claimControllerHomeButton: Bool = true
-    /// Milliseconds the head pose sent to the streamer is predicted past the display time of the current frame (10, 20 or 30; 0 = off). Starts at the maximum, to be ratcheted down.
+    /// Milliseconds the head pose sent to the streamer is predicted past the display time of the current frame. No UI: 30 felt right on a headset; a hand-edited globalsettings.data can still change it.
     var headLookaheadMs: Int = 30
     
     init() {}
@@ -59,10 +57,9 @@ struct GlobalSettings: Codable {
         self.chromaKeyColorB = try container.decodeIfPresent(Float.self, forKey: .chromaKeyColorB) ?? self.chromaKeyColorB
         self.dismissWindowOnEnter = try container.decodeIfPresent(Bool.self, forKey: .dismissWindowOnEnter) ?? self.dismissWindowOnEnter
         self.emulatedPinchInteractions = try container.decodeIfPresent(Bool.self, forKey: .emulatedPinchInteractions) ?? self.emulatedPinchInteractions
-        self.fovRenderScale = try container.decodeIfPresent(Float.self, forKey: .fovRenderScale) ?? self.fovRenderScale
         self.autoFloorHeight = try container.decodeIfPresent(Bool.self, forKey: .autoFloorHeight) ?? self.autoFloorHeight
         self.heightOffsetCm = try container.decodeIfPresent(Int.self, forKey: .heightOffsetCm) ?? self.heightOffsetCm
-        self.visibleFovLimit = try container.decodeIfPresent(String.self, forKey: .visibleFovLimit) ?? self.visibleFovLimit
+        self.autoConnect = try container.decodeIfPresent(Bool.self, forKey: .autoConnect) ?? self.autoConnect
         self.targetHandsAtRoundtripLatency = try container.decodeIfPresent(Bool.self, forKey: .targetHandsAtRoundtripLatency) ?? self.targetHandsAtRoundtripLatency
         self.showFaceTrackingDebug = try container.decodeIfPresent(Bool.self, forKey: .showFaceTrackingDebug) ?? self.showFaceTrackingDebug
         self.lastUsedAppVersion = try container.decodeIfPresent(String.self, forKey: .lastUsedAppVersion) ?? self.lastUsedAppVersion
@@ -74,16 +71,12 @@ struct GlobalSettings: Codable {
 }
 
 extension GlobalSettings {
-    /// Tangent limits (left, right, up, down) for one eye, or nil when the limit is off. Measured on the left eye as
-    /// outer / inner / up / down; the right eye is assumed to mirror it, so outer and inner swap.
-    func visibleFovTangents(isLeftEye: Bool) -> simd_float4? {
-        let outerInnerUpDown: simd_float4
-        switch visibleFovLimit {
-        case "tight": outerInnerUpDown = simd_float4(0.85, 0.84, 0.81, 0.68)
-        case "measured": outerInnerUpDown = simd_float4(0.94, 0.93, 0.90, 0.76)
-        case "safer": outerInnerUpDown = simd_float4(1.01, 1.00, 0.97, 0.82)
-        default: return nil
-        }
+    /// Tangent limits (left, right, up, down) for one eye: the visible window measured on a Vision Pro
+    /// (docs/AVP_FOV.md in the AirFrameXR repo) plus 3 degrees. Measured on the left eye as outer / inner / up / down;
+    /// the right eye is assumed to mirror it, so outer and inner swap. On a headset this covers the panel
+    /// edge to edge; anything narrower (a scale below 1.0) leaves a gap at the edges, so there is no setting for it.
+    static func visibleFovTangents(isLeftEye: Bool) -> simd_float4 {
+        let outerInnerUpDown = simd_float4(0.94, 0.93, 0.90, 0.76)
         return isLeftEye ? outerInnerUpDown : simd_float4(outerInnerUpDown.y, outerInnerUpDown.x, outerInnerUpDown.z, outerInnerUpDown.w)
     }
 }
