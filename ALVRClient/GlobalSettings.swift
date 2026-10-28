@@ -69,12 +69,12 @@ struct GlobalSettings: Codable {
 }
 
 extension GlobalSettings {
-    /// Tangent limits (left, right, up, down) for one eye: the visible window measured on a Vision Pro
-    /// (docs/AVP_FOV.md in the AirFrameXR repo) plus 3 degrees. Measured on the left eye as outer / inner / up / down;
-    /// the right eye is assumed to mirror it, so outer and inner swap. On a headset this covers the panel
+    /// Tangent limits (left, right, up, down) for one eye: the visible window calibrated on a Vision Pro
+    /// (docs/AVP_FOV.md and docs/FOV_CALIBRATION.md in the AirFrameXR repo): one rectangle for both eyes, the tight box around the
+    /// larger of the two eyes' windows, no margin. Given as outer / inner / up / down; the right eye mirrors it, so outer and inner swap. On a headset this covers the panel
     /// edge to edge; anything narrower (a scale below 1.0) leaves a gap at the edges, so there is no setting for it.
     static func visibleFovTangents(isLeftEye: Bool) -> simd_float4 {
-        let outerInnerUpDown = simd_float4(0.94, 0.93, 0.90, 0.76)
+        let outerInnerUpDown = simd_float4(0.71, 0.59, 0.61, 0.57)
         return isLeftEye ? outerInnerUpDown : simd_float4(outerInnerUpDown.y, outerInnerUpDown.x, outerInnerUpDown.z, outerInnerUpDown.w)
     }
 }
