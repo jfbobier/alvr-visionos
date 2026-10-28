@@ -445,6 +445,9 @@ class WorldTracker {
     var leftIsPinching = false
     var lastLeftIsPinching = false
     var leftPinchTrigger: Float = 0.0
+    /// Raw hand pinch (thumb tip to index tip) as a click, with hysteresis; see sendTracking.
+    var leftHandPinchDown = false
+    var rightHandPinchDown = false
     var bothPinchSystemButtonTime: Float = 0.0
     
     var rightSelectionRayId = -1
@@ -3243,6 +3246,39 @@ class WorldTracker {
         }
         lastLeftIsPinching = leftIsPinching
         lastRightIsPinching = rightIsPinching
+
+        // Hand pinch = the hand's trigger (left hand = left click, right hand = right click). Only in hand mode: no
+        // controller connected, and not when the streamer derives the pinch from the skeleton itself.
+        if !handGesturesEnabled && controllerLeftMotion == nil && controllerRightMotion == nil && GCController.controllers().isEmpty {
+            for (hand, isLeft) in [(handPoses.leftHand, true), (handPoses.rightHand, false)] {
+                guard let hand = hand else { continue }
+                var distance: Float? = nil
+                if hand.isTracked, let skeleton = hand.handSkeleton {
+                    let thumb = skeleton.joint(.thumbTip)
+                    let index = skeleton.joint(.indexFingerTip)
+                    if thumb.isTracked && index.isTracked {
+                        distance = simd_distance(thumb.anchorFromJointTransform.columns.3.asFloat3(), index.anchorFromJointTransform.columns.3.asFloat3())
+                    }
+                }
+                // Down under 1.5 cm, up over 2.5 cm; the analog value ramps from 4 cm (0) to 1 cm (1).
+                var down = isLeft ? leftHandPinchDown : rightHandPinchDown
+                if let d = distance {
+                    down = down ? d < 0.025 : d < 0.015
+                } else {
+                    down = false
+                }
+                let value: Float = distance.map { min(max((0.040 - $0) / 0.030, 0.0), 1.0) } ?? 0.0
+                if isLeft {
+                    leftHandPinchDown = down
+                    alvr_send_button(WorldTracker.leftTriggerClick, boolVal(down))
+                    alvr_send_button(WorldTracker.leftTriggerValue, scalarVal(value))
+                } else {
+                    rightHandPinchDown = down
+                    alvr_send_button(WorldTracker.rightTriggerClick, boolVal(down))
+                    alvr_send_button(WorldTracker.rightTriggerValue, scalarVal(value))
+                }
+            }
+        }
         
         // Handle this after the pinch gestures can override the skeletons
         if skeletonLeft != nil {
