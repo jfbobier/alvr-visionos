@@ -224,10 +224,25 @@ func jointIdxIsMoreMobile(_ idx: Int) -> Bool {
 #if XCODE_BETA_26
 //@available(visionOS 26.0, *)
 #endif
-/// The floor the room scan currently reads, for the Entry window (origin frame, metres; nil until a floor is seen).
+/// What the headset read in the last session, for the Entry window (tracking only runs inside the immersive space, so
+/// the window shows the previous session's values). Origin frame, metres; kept in UserDefaults.
 final class FloorReadout: ObservableObject {
     static let shared = FloorReadout()
-    @Published var detectedFloorY: Float? = nil
+    /// Head height above the headset's own floor (its origin) as last reported.
+    @Published var headY: Float? = UserDefaults.standard.object(forKey: "floorReadoutHeadY") as? Float
+    /// Floor the room scan saw, as a height in the same frame (nil if none was seen).
+    @Published var floorY: Float? = UserDefaults.standard.object(forKey: "floorReadoutFloorY") as? Float
+
+    @MainActor func record(headY: Float, floorY: Float?) {
+        self.headY = headY
+        self.floorY = floorY
+        UserDefaults.standard.set(headY, forKey: "floorReadoutHeadY")
+        if let floorY = floorY {
+            UserDefaults.standard.set(floorY, forKey: "floorReadoutFloorY")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "floorReadoutFloorY")
+        }
+    }
 }
 
 class WorldTracker {
@@ -457,15 +472,7 @@ class WorldTracker {
     var rightPinchEyeDelta = simd_float3()
     var floorCorrectionTransform = simd_float3()
     // Floor height (origin frame, metres) from the largest detected floor plane; nil until a floor is seen.
-    var detectedFloorY: Float? = nil {
-        didSet {
-            let y = detectedFloorY
-            DispatchQueue.main.async { FloorReadout.shared.detectedFloorY = y }
-        }
-    }
-    // The vertical shift currently applied for the floor (slews towards -detectedFloorY once the picture is up).
-    var appliedFloorShift: Float = 0.0
-    var lastFloorShiftTime: Double = 0.0
+    var detectedFloorY: Float? = nil
     var lastFloorLogTime: Double = 0.0
     
     var leftSkeletonDisableHysteresis = 0.0
@@ -943,34 +950,20 @@ class WorldTracker {
         return best?.y
     }
 
-    /// The vertical shift that makes the head height read right for the game: the detected floor goes to zero (at most
-    /// 2 cm per second once the picture is up, so frames in flight do not jump), or, with the override on, the manual
-    /// floor level alone. With no plausible floor the last shift is kept.
+    /// The vertical shift for the game: only the user's floor height offset correction, added to whatever the headset
+    /// reports. The head height and the floor the room scan sees are logged and shown in the Entry window (next
+    /// launch) so the user can judge whether the correction is needed.
     func floorShift(headY: Float) -> Float {
         let settings = ALVRClientApp.gStore.settings
+        let shift = Float(settings.heightOffsetCm) / 100.0
         let now = CACurrentMediaTime()
-        let dt = Float(min(max(now - lastFloorShiftTime, 0.0), 0.1))
-        lastFloorShiftTime = now
-        if !settings.overrideFloorHeight {
-            if let floorY = detectedFloorY, headY - floorY > 0.3, headY - floorY < 2.4 {
-                let target = -floorY
-                let diff = target - appliedFloorShift
-                if EventHandler.shared.framesRendered < 300 || abs(diff) > 1.0 {
-                    appliedFloorShift = target
-                } else {
-                    let step = 0.02 * dt
-                    appliedFloorShift += min(max(diff, -step), step)
-                }
-            }
-        } else {
-            appliedFloorShift = 0.0
-        }
-        let shift = settings.overrideFloorHeight ? Float(settings.heightOffsetCm) / 100.0 : appliedFloorShift
         if now - lastFloorLogTime > 2.0 {
             lastFloorLogTime = now
             let floorText = detectedFloorY.map { String(format: "%.2f", $0) } ?? "none"
-            let line = String(format: "[floor] head y %.2f floor y %@ (head above floor %@) shift %.3f manual %d cm", headY, floorText, detectedFloorY.map { String(format: "%.2f", headY - $0) } ?? "-", shift, settings.heightOffsetCm)
+            let line = String(format: "[floor] head y %.2f floor y %@ (head above floor %@) offset %d cm", headY, floorText, detectedFloorY.map { String(format: "%.2f", headY - $0) } ?? "-", settings.heightOffsetCm)
             line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_ERROR.rawValue), $0) }
+            let floorY = detectedFloorY
+            Task { @MainActor in FloorReadout.shared.record(headY: headY, floorY: floorY) }
         }
         return shift
     }

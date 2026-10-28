@@ -20,12 +20,17 @@ struct Entry: View {
         )
     }
 
-    private var floorReading: String {
-        guard let y = floorReadout.detectedFloorY else {
-            return "Detected floor: none yet (look around the room)"
+    private var floorReading: [String] {
+        guard let head = floorReadout.headY else {
+            return ["Height readings appear here after your first session."]
         }
-        let cm = Int((y * 100).rounded())
-        return cm == 0 ? "Detected floor: at the headset's origin" : "Detected floor: \(abs(cm)) cm \(cm < 0 ? "below" : "above") the headset's origin"
+        var lines = [String(format: "Last session, the headset read your head at %.2f m.", head)]
+        if let floor = floorReadout.floorY {
+            lines.append(String(format: "The room scan put your head %.2f m above the floor it saw.", head - floor))
+        } else {
+            lines.append("The room scan saw no floor.")
+        }
+        return lines
     }
 
     var body: some View {
@@ -57,25 +62,20 @@ struct Entry: View {
             .frame(minHeight: 200)
 
             VStack {
-                Text(floorReading)
+                ForEach(floorReading, id: \.self) { line in
+                    Text(line)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                Text(String(format: "Floor height offset correction: %+d cm", gStore.settings.heightOffsetCm))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Toggle(isOn: $gStore.settings.overrideFloorHeight) {
-                    Text("Override detected floor level")
+                    .padding(.top)
+                Slider(value: heightOffsetCm, in: -50...50, step: 1) {
+                    Text("Floor height offset correction")
                 }
-                .toggleStyle(.switch)
-                .onChange(of: gStore.settings.overrideFloorHeight) {
-                    saveAction()
-                }
-                Text(String(format: "Floor level: %+d cm", gStore.settings.heightOffsetCm))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Slider(value: heightOffsetCm, in: -30...30, step: 1) {
-                    Text("Floor level")
-                }
-                .disabled(!gStore.settings.overrideFloorHeight)
                 .onChange(of: gStore.settings.heightOffsetCm) {
                     saveAction()
                 }
-                Text("By default the floor the headset found is put at height zero, so your height reads right in games. If you stand too low or too high, switch the override on and set the level yourself (positive raises you). Takes effect at once.")
+                Text("Added to whatever height the headset reads (positive raises you in the game). Standing, the reading is usually right; seated it can be off and games then misplace you. Compare the readings with your real eye height and correct here. Takes effect at once.")
                     .font(.system(size: 10))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
