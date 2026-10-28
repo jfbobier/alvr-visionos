@@ -2154,11 +2154,15 @@ class WorldTracker {
                 // visionOS keeps the PS/Home button for itself unless the app asks to receive it and the user
                 // listed the app under Home Button Overrides (Settings > General > Game Controller, visionOS 27).
                 // Asked on every pass, whether or not new input arrived, so the claim is in place before the
-                // first press rather than after it.
-                let claimReport = controller.claimHomeButtonFromSystem()
-                if CACurrentMediaTime() - lastHomeButtonReport > 5.0 {
-                    lastHomeButtonReport = CACurrentMediaTime()
-                    let line = "[home] \(controller.vendorName ?? "?") \(claimReport) inAppAction=\(ControllerHomeButtonStatus.shared.state) buttons=\(controller.physicalInputProfile.allButtons.flatMap { $0.aliases }.sorted().joined(separator: ","))"
+                // first press rather than after it. On the PSVR2 Sense controllers the profile has no Home
+                // element at all (field log 2026-10-28), so there the PS button stays Apple's whatever we do;
+                // the small Create/Options buttons are "Button Menu" and reach the app.
+                // One line per controller in the host log, again only if the picture changes (a controller that
+                // reconnects is a new object and gets its own line).
+                let claimReport = "\(controller.claimHomeButtonFromSystem()) inAppAction=\(ControllerHomeButtonStatus.shared.state)"
+                if homeButtonReports[ObjectIdentifier(controller)] != claimReport {
+                    homeButtonReports[ObjectIdentifier(controller)] = claimReport
+                    let line = "[home] \(controller.vendorName ?? "?") \(claimReport) buttons=\(controller.physicalInputProfile.allButtons.flatMap { $0.aliases }.sorted().joined(separator: ","))"
                     line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_ERROR.rawValue), $0) }
                 }
                 if ControllerHomeButtonStatus.shared.state == .unknown && CACurrentMediaTime() - lastHomeButtonStatusAttempt > 2.0 {
@@ -2177,26 +2181,8 @@ class WorldTracker {
             let homeButtonReachesApp = claimHomeButton && ControllerHomeButtonStatus.shared.reachesApp
             // Read from the live-input snapshot and from the physical input profile: the two collections are
             // not identical for the Sense controllers.
-            let homePressedLive = buttons["Button Home"]?.pressedInput.isPressed ?? false
-            let homePressedProfile = controller.homeButtonPressedInProfile
-            let homePressed = homePressedLive || homePressedProfile
+            let homePressed = (buttons["Button Home"]?.pressedInput.isPressed ?? false) || controller.homeButtonPressedInProfile
             let homeTouched = buttons["Button Home"]?.touchedInput?.isTouched ?? false
-            let menuPressedNow = buttons["Button Menu"]?.pressedInput.isPressed ?? false
-            if menuPressedNow != (isLeft ? lastMenuPressedLeft : lastMenuPressedRight) {
-                if isLeft { lastMenuPressedLeft = menuPressedNow } else { lastMenuPressedRight = menuPressedNow }
-                if menuPressedNow {
-                    let bound = controller.physicalInputProfile.buttons[GCInputButtonMenu]?.isBoundToSystemGesture ?? false
-                    let line = "[home] menu press \(isLeft ? "left" : "right") bound=\(bound)"
-                    line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_ERROR.rawValue), $0) }
-                }
-            }
-            if homePressed != (isLeft ? lastHomePressedLeft : lastHomePressedRight) {
-                if isLeft { lastHomePressedLeft = homePressed } else { lastHomePressedRight = homePressed }
-                if homePressed {
-                    let line = "[home] press \(isLeft ? "left" : "right") live=\(homePressedLive) profile=\(homePressedProfile) inAppAction=\(ControllerHomeButtonStatus.shared.state)"
-                    line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_ERROR.rawValue), $0) }
-                }
-            }
             let dpads = capturedInput.dpads
             let axes = capturedInput.axes
 
@@ -2571,11 +2557,8 @@ class WorldTracker {
     
     var lastSentTime = 0.0
     var lastHomeButtonStatusAttempt = 0.0
-    var lastHomeButtonReport = 0.0
-    var lastHomePressedLeft = false
-    var lastHomePressedRight = false
-    var lastMenuPressedLeft = false
-    var lastMenuPressedRight = false
+    /// Last `[home]` report logged per connected controller, so a line is written only when something changes.
+    var homeButtonReports: [ObjectIdentifier: String] = [:]
     
     // TODO: figure out how stable Apple's predictions are into the future
     // targetTimestamp: The timestamp of the pose we will send to ALVR--capped by how far we can predict forward.

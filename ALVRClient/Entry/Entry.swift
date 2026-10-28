@@ -3,7 +3,6 @@ Abstract:
 The Entry content for a volume: connection status, a few switches and the Enter button, in one column so nothing sits outside the window.
 */
 
-import GameController
 import SwiftUI
 import UIKit
 
@@ -11,7 +10,6 @@ struct Entry: View {
     @ObservedObject var eventHandler = EventHandler.shared
     @EnvironmentObject var gStore: GlobalSettingsStore
     @ObservedObject var floorReadout = FloorReadout.shared
-    @ObservedObject var homeButtonStatus = ControllerHomeButtonStatus.shared
     /// True while the reading is coming from the headset right now; dimmed when it is the last session's.
     @State private var floorReadingIsLive = false
     @Environment(\.scenePhase) private var scenePhase
@@ -74,10 +72,6 @@ struct Entry: View {
                         .foregroundStyle(floorReadingIsLive ? .primary : .secondary)
                 }
                     .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
-                        if !GCController.controllers().isEmpty {
-                            // The Home button setting can only be read while a controller is connected.
-                            Task { @MainActor in ControllerHomeButtonStatus.shared.start() }
-                        }
                         guard !EventHandler.shared.renderStarted else { return }
                         if let y = WorldTracker.shared.currentHeadHeight() {
                             floorReadingIsLive = true
@@ -132,22 +126,6 @@ struct Entry: View {
                 .onChange(of: gStore.settings.autoConnect) {
                     saveAction()
                 }
-                HStack {
-                    Text("PS button")
-                    Spacer()
-                    switch homeButtonStatus.state {
-                    case .deliveredToApp:
-                        Text("Reaches the game")
-                    case .systemHandles:
-                        Text("Taken by visionOS")
-                            .foregroundStyle(.secondary)
-                        Button("Open Settings") { Task { @MainActor in homeButtonStatus.openSettings() } }
-                    case .unknown:
-                        Text("Connect a controller")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.top, 8)
             }
             .padding(.horizontal)
             .padding(.top)

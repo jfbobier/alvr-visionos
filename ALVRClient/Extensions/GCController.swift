@@ -49,18 +49,19 @@ extension GCController {
         return report.joined(separator: " ")
     }
 
-    /// The Home (PS) button as the physical input profile sees it. The live-input snapshot (`input.nextInputState()`)
+    /// The Home button as the physical input profile sees it. The live-input snapshot (`input.nextInputState()`)
     /// and the profile are two collections, and Apple has acknowledged they differ for the Sense controllers,
-    /// so the press is read from both.
+    /// so the press is read from both. Nil element (the Sense case) reads as not pressed.
     var homeButtonPressedInProfile: Bool {
         physicalInputProfile.buttons[GCInputButtonHome]?.isPressed ?? false
     }
 }
 
-/// Whether the controller Home (PS) button can reach the app, and a way to ask the user to enable it.
+/// Whether the controller Home button can reach the app (the user's Home Button Overrides choice).
 ///
 /// visionOS 27 lets the user choose what the Home button does while an app is in front: keep the system
-/// behavior, or defer to the app. The app can read that choice and open the Settings page, but not change it.
+/// behavior, or defer to the app. The app can read that choice, not change it. Decides only whether the menu
+/// button doubles as the system click; on the PSVR2 Sense the PS button is never exposed, whatever the choice.
 final class ControllerHomeButtonStatus: ObservableObject {
     static let shared = ControllerHomeButtonStatus()
 
@@ -95,20 +96,6 @@ final class ControllerHomeButtonStatus: ObservableObject {
                 for await _ in m.settingsUpdates {
                     self?.refresh(m)
                 }
-            }
-        }
-#endif
-    }
-
-    /// Opens the Settings page where the user picks "Defer to app" for the in-app action.
-    @MainActor func openSettings() {
-#if XCODE_BETA_27
-        if #available(visionOS 27.0, *), let m = manager as? GCControllerHomeButtonSettingsManager {
-            do {
-                try m.openControllerHomeButtonSettings(for: .customizeInAppAction)
-            }
-            catch {
-                print("Could not open controller Home button settings: \(error)")
             }
         }
 #endif
