@@ -224,6 +224,12 @@ func jointIdxIsMoreMobile(_ idx: Int) -> Bool {
 #if XCODE_BETA_26
 //@available(visionOS 26.0, *)
 #endif
+/// The floor the room scan currently reads, for the Entry window (origin frame, metres; nil until a floor is seen).
+final class FloorReadout: ObservableObject {
+    static let shared = FloorReadout()
+    @Published var detectedFloorY: Float? = nil
+}
+
 class WorldTracker {
     static let shared = WorldTracker()
     
@@ -451,7 +457,12 @@ class WorldTracker {
     var rightPinchEyeDelta = simd_float3()
     var floorCorrectionTransform = simd_float3()
     // Floor height (origin frame, metres) from the largest detected floor plane; nil until a floor is seen.
-    var detectedFloorY: Float? = nil
+    var detectedFloorY: Float? = nil {
+        didSet {
+            let y = detectedFloorY
+            DispatchQueue.main.async { FloorReadout.shared.detectedFloorY = y }
+        }
+    }
     // The vertical shift currently applied for the floor (slews towards -detectedFloorY once the picture is up).
     var appliedFloorShift: Float = 0.0
     var lastFloorShiftTime: Double = 0.0
@@ -933,14 +944,14 @@ class WorldTracker {
     }
 
     /// The vertical shift that makes the head height read right for the game: the detected floor goes to zero (at most
-    /// 2 cm per second once the picture is up, so frames in flight do not jump), plus the manual offset. With no
-    /// plausible floor the last shift is kept.
+    /// 2 cm per second once the picture is up, so frames in flight do not jump), or, with the override on, the manual
+    /// floor level alone. With no plausible floor the last shift is kept.
     func floorShift(headY: Float) -> Float {
         let settings = ALVRClientApp.gStore.settings
         let now = CACurrentMediaTime()
         let dt = Float(min(max(now - lastFloorShiftTime, 0.0), 0.1))
         lastFloorShiftTime = now
-        if settings.autoFloorHeight {
+        if !settings.overrideFloorHeight {
             if let floorY = detectedFloorY, headY - floorY > 0.3, headY - floorY < 2.4 {
                 let target = -floorY
                 let diff = target - appliedFloorShift
@@ -954,7 +965,7 @@ class WorldTracker {
         } else {
             appliedFloorShift = 0.0
         }
-        let shift = appliedFloorShift + Float(settings.heightOffsetCm) / 100.0
+        let shift = settings.overrideFloorHeight ? Float(settings.heightOffsetCm) / 100.0 : appliedFloorShift
         if now - lastFloorLogTime > 2.0 {
             lastFloorLogTime = now
             let floorText = detectedFloorY.map { String(format: "%.2f", $0) } ?? "none"

@@ -23,9 +23,10 @@ struct GlobalSettings: Codable {
     var chromaKeyColorB: Float = 16.0 / 255.0
     var dismissWindowOnEnter: Bool = true
     var emulatedPinchInteractions: Bool = false
-    /// Put the floor the room scan found at height zero for the game (the head height then reads right, seated or standing).
-    var autoFloorHeight: Bool = true
-    /// Manual height offset in centimetres, added on top; positive raises the player in the game.
+    /// Off (default): the floor the room scan found is put at height zero for the game, so the head height reads right,
+    /// seated or standing. On: that detection is ignored and `heightOffsetCm` is used instead.
+    var overrideFloorHeight: Bool = false
+    /// Manual floor level in centimetres from the headset's origin, used only with `overrideFloorHeight`; positive raises the player.
     var heightOffsetCm: Int = 0
     /// Enter the streamer as soon as the connection is up, without pressing Enter.
     var autoConnect: Bool = false
@@ -55,7 +56,7 @@ struct GlobalSettings: Codable {
         self.chromaKeyColorB = try container.decodeIfPresent(Float.self, forKey: .chromaKeyColorB) ?? self.chromaKeyColorB
         self.dismissWindowOnEnter = try container.decodeIfPresent(Bool.self, forKey: .dismissWindowOnEnter) ?? self.dismissWindowOnEnter
         self.emulatedPinchInteractions = try container.decodeIfPresent(Bool.self, forKey: .emulatedPinchInteractions) ?? self.emulatedPinchInteractions
-        self.autoFloorHeight = try container.decodeIfPresent(Bool.self, forKey: .autoFloorHeight) ?? self.autoFloorHeight
+        self.overrideFloorHeight = try container.decodeIfPresent(Bool.self, forKey: .overrideFloorHeight) ?? self.overrideFloorHeight
         self.heightOffsetCm = try container.decodeIfPresent(Int.self, forKey: .heightOffsetCm) ?? self.heightOffsetCm
         self.autoConnect = try container.decodeIfPresent(Bool.self, forKey: .autoConnect) ?? self.autoConnect
         self.targetHandsAtRoundtripLatency = try container.decodeIfPresent(Bool.self, forKey: .targetHandsAtRoundtripLatency) ?? self.targetHandsAtRoundtripLatency
