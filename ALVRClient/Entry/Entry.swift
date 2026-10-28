@@ -83,7 +83,8 @@ struct Entry: View {
                 HStack {
                     Text("+ Manual height offset")
                     Spacer()
-                    Text(String(format: "%+d cm", gStore.settings.heightOffsetCm))
+                    Text(gameHeight)
+                        .foregroundStyle(floorReadingIsLive ? .primary : .secondary)
                 }
                 .padding(.top)
                 Slider(value: heightOffsetCm, in: -50...50, step: 1) {
@@ -91,12 +92,6 @@ struct Entry: View {
                 }
                 .onChange(of: gStore.settings.heightOffsetCm) {
                     saveAction()
-                }
-                HStack {
-                    Text("= Height seen by the game")
-                    Spacer()
-                    Text(gameHeight)
-                        .foregroundStyle(floorReadingIsLive ? .primary : .secondary)
                 }
             }
             .padding(.horizontal)
