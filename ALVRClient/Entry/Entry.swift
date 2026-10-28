@@ -10,6 +10,8 @@ struct Entry: View {
     @ObservedObject var eventHandler = EventHandler.shared
     @EnvironmentObject var gStore: GlobalSettingsStore
     @ObservedObject var floorReadout = FloorReadout.shared
+    /// True while the reading is coming from the headset right now; dimmed when it is the last session's.
+    @State private var floorReadingIsLive = false
     @Environment(\.scenePhase) private var scenePhase
     let saveAction: ()->Void
 
@@ -22,9 +24,9 @@ struct Entry: View {
 
     private var floorReading: String {
         guard let head = floorReadout.headY else {
-            return "Head height appears after your first session"
+            return "Headset detected: not yet"
         }
-        return String(format: "Headset reads your head at %.2f m", head)
+        return String(format: "Headset detected %.2f m above the floor", head)
     }
 
     var body: some View {
@@ -57,7 +59,17 @@ struct Entry: View {
 
             VStack {
                 Text(floorReading)
+                    .foregroundStyle(floorReadingIsLive ? .primary : .secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
+                        guard !EventHandler.shared.renderStarted else { return }
+                        if let y = WorldTracker.shared.currentHeadHeight() {
+                            floorReadingIsLive = true
+                            floorReadout.record(headY: y)
+                        } else {
+                            floorReadingIsLive = false
+                        }
+                    }
                 Text(String(format: "Floor height offset: %+d cm", gStore.settings.heightOffsetCm))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top)

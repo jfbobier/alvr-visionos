@@ -957,6 +957,13 @@ class WorldTracker {
         return shift
     }
     
+    /// Head height above the headset's own floor right now, or nil when the headset gives no pose (tracking may only
+    /// run inside the immersive space). Used by the Entry window; never called while streaming.
+    func currentHeadHeight() -> Float? {
+        guard let worldTracking = worldTracking else { return nil }
+        return worldTracking.queryDeviceAnchor(atTimestamp: CACurrentMediaTime())?.originFromAnchorTransform.columns.3.y
+    }
+
     func lockPlaneAnchors() {
         objc_sync_enter(planeLock)
     }
