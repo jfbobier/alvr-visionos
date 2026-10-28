@@ -26,6 +26,8 @@ struct GlobalSettings: Codable {
     /// Floor height offset in centimetres, added to whatever height the headset reports; positive raises the
     /// player in the game. 0 = the headset's reading as is.
     var heightOffsetCm: Int = 0
+    /// On: hands also appear as controllers (pose, and a pinch is the trigger). Off: the hand skeleton only.
+    var handsAsControllers: Bool = true
     /// Enter the streamer as soon as the connection is up, without pressing Enter.
     var autoConnect: Bool = false
     var targetHandsAtRoundtripLatency = false
@@ -55,6 +57,7 @@ struct GlobalSettings: Codable {
         self.dismissWindowOnEnter = try container.decodeIfPresent(Bool.self, forKey: .dismissWindowOnEnter) ?? self.dismissWindowOnEnter
         self.emulatedPinchInteractions = try container.decodeIfPresent(Bool.self, forKey: .emulatedPinchInteractions) ?? self.emulatedPinchInteractions
         self.heightOffsetCm = try container.decodeIfPresent(Int.self, forKey: .heightOffsetCm) ?? self.heightOffsetCm
+        self.handsAsControllers = try container.decodeIfPresent(Bool.self, forKey: .handsAsControllers) ?? self.handsAsControllers
         self.autoConnect = try container.decodeIfPresent(Bool.self, forKey: .autoConnect) ?? self.autoConnect
         self.targetHandsAtRoundtripLatency = try container.decodeIfPresent(Bool.self, forKey: .targetHandsAtRoundtripLatency) ?? self.targetHandsAtRoundtripLatency
         self.showFaceTrackingDebug = try container.decodeIfPresent(Bool.self, forKey: .showFaceTrackingDebug) ?? self.showFaceTrackingDebug

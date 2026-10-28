@@ -2591,6 +2591,13 @@ class WorldTracker {
             handGesturesEnabled = false
         }
         
+        // "Hands as controllers" off: skeletons only, the same path as the streamer's own hand gestures.
+        if !ALVRClientApp.gStore.settings.handsAsControllers {
+            skeletonsEnabled = true
+            handGesturesEnabled = true
+            steamVRInput2p0Enabled = false
+        }
+        
         Task {
             for anchor in worldAnchorsToRemove {
                 do {
