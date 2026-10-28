@@ -19,25 +19,31 @@ extension GCController {
 
 extension GCController {
     /// Buttons the system may act on while an app is in front: Home (PS), and the menu-like ones (Menu, Options/Create, Share).
-    static let systemClaimedButtons = [GCInputButtonHome, GCInputButtonMenu, GCInputButtonOptions, GCInputButtonShare]
+    /// Only Home is claimed (Apple documents that one); the others are reported as the profile sees them.
+    static let systemClaimedButtons = [GCInputButtonHome]
+    static let reportedButtons = [GCInputButtonHome, GCInputButtonMenu, GCInputButtonOptions, GCInputButtonShare]
 
-    /// Asks visionOS not to act on the controller's Home and menu buttons, so the press reaches the app.
+    /// Asks visionOS not to act on the controller's Home button, so the press reaches the app.
     ///
-    /// This is only a request: for Home the system honors it when the user's "in-app action" is set to
-    /// "Defer to app" in Settings (visionOS 27). See `ControllerHomeButtonStatus`. Returns a one-line report
-    /// (which buttons exist and what they were set to) for the host log.
+    /// This is only a request: the system honors it when the user listed the app under Home Button Overrides
+    /// (Settings > General > Game Controller, visionOS 27). See `ControllerHomeButtonStatus`. Returns a one-line
+    /// report (which buttons exist, what they were set to, whether the system binds them) for the host log.
+    /// Field result 2026-10-28: the Sense controllers expose no Home element at all ("Button Home=absent").
     @discardableResult
     func claimHomeButtonFromSystem() -> String {
         var report = [String]()
-        for name in GCController.systemClaimedButtons {
+        for name in GCController.reportedButtons {
             guard let button = physicalInputProfile.buttons[name] else {
                 report.append("\(name)=absent")
                 continue
             }
-            if button.preferredSystemGestureState != .disabled {
-                button.preferredSystemGestureState = .disabled
+            var state = "present"
+            if GCController.systemClaimedButtons.contains(name) {
+                if button.preferredSystemGestureState != .disabled {
+                    button.preferredSystemGestureState = .disabled
+                }
+                state = button.preferredSystemGestureState == .disabled ? "claimed" : "refused"
             }
-            let state = button.preferredSystemGestureState == .disabled ? "claimed" : "refused"
             report.append("\(name)=\(state)\(button.isBoundToSystemGesture ? "/bound" : "")")
         }
         return report.joined(separator: " ")

@@ -2181,6 +2181,15 @@ class WorldTracker {
             let homePressedProfile = controller.homeButtonPressedInProfile
             let homePressed = homePressedLive || homePressedProfile
             let homeTouched = buttons["Button Home"]?.touchedInput?.isTouched ?? false
+            let menuPressedNow = buttons["Button Menu"]?.pressedInput.isPressed ?? false
+            if menuPressedNow != (isLeft ? lastMenuPressedLeft : lastMenuPressedRight) {
+                if isLeft { lastMenuPressedLeft = menuPressedNow } else { lastMenuPressedRight = menuPressedNow }
+                if menuPressedNow {
+                    let bound = controller.physicalInputProfile.buttons[GCInputButtonMenu]?.isBoundToSystemGesture ?? false
+                    let line = "[home] menu press \(isLeft ? "left" : "right") bound=\(bound)"
+                    line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_ERROR.rawValue), $0) }
+                }
+            }
             if homePressed != (isLeft ? lastHomePressedLeft : lastHomePressedRight) {
                 if isLeft { lastHomePressedLeft = homePressed } else { lastHomePressedRight = homePressed }
                 if homePressed {
@@ -2565,6 +2574,8 @@ class WorldTracker {
     var lastHomeButtonReport = 0.0
     var lastHomePressedLeft = false
     var lastHomePressedRight = false
+    var lastMenuPressedLeft = false
+    var lastMenuPressedRight = false
     
     // TODO: figure out how stable Apple's predictions are into the future
     // targetTimestamp: The timestamp of the pose we will send to ALVR--capped by how far we can predict forward.
