@@ -20,17 +20,11 @@ struct Entry: View {
         )
     }
 
-    private var floorReading: [String] {
+    private var floorReading: String {
         guard let head = floorReadout.headY else {
-            return ["Height reading appears after your first session"]
+            return "Head height appears after your first session"
         }
-        var lines = [String(format: "Headset reads your head at %.2f m", head)]
-        if let floor = floorReadout.floorY {
-            lines.append(String(format: "Room scan: head %.2f m above the floor", head - floor))
-        } else {
-            lines.append("Room scan: no floor seen")
-        }
-        return lines
+        return String(format: "Headset reads your head at %.2f m", head)
     }
 
     var body: some View {
@@ -62,10 +56,8 @@ struct Entry: View {
             .frame(minHeight: 200)
 
             VStack {
-                ForEach(floorReading, id: \.self) { line in
-                    Text(line)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                Text(floorReading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Text(String(format: "Floor height offset: %+d cm", gStore.settings.heightOffsetCm))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top)

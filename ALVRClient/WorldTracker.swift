@@ -224,24 +224,15 @@ func jointIdxIsMoreMobile(_ idx: Int) -> Bool {
 #if XCODE_BETA_26
 //@available(visionOS 26.0, *)
 #endif
-/// What the headset read in the last session, for the Entry window (tracking only runs inside the immersive space, so
-/// the window shows the previous session's values). Origin frame, metres; kept in UserDefaults.
+/// Where the headset reported the head in the last session, for the Entry window (tracking only runs inside the
+/// immersive space, so the window shows the previous session's value). Metres above the headset's own floor; kept in UserDefaults.
 final class FloorReadout: ObservableObject {
     static let shared = FloorReadout()
-    /// Head height above the headset's own floor (its origin) as last reported.
     @Published var headY: Float? = UserDefaults.standard.object(forKey: "floorReadoutHeadY") as? Float
-    /// Floor the room scan saw, as a height in the same frame (nil if none was seen).
-    @Published var floorY: Float? = UserDefaults.standard.object(forKey: "floorReadoutFloorY") as? Float
 
-    @MainActor func record(headY: Float, floorY: Float?) {
+    @MainActor func record(headY: Float) {
         self.headY = headY
-        self.floorY = floorY
         UserDefaults.standard.set(headY, forKey: "floorReadoutHeadY")
-        if let floorY = floorY {
-            UserDefaults.standard.set(floorY, forKey: "floorReadoutFloorY")
-        } else {
-            UserDefaults.standard.removeObject(forKey: "floorReadoutFloorY")
-        }
     }
 }
 
@@ -950,9 +941,8 @@ class WorldTracker {
         return best?.y
     }
 
-    /// The vertical shift for the game: only the user's floor height offset correction, added to whatever the headset
-    /// reports. The head height and the floor the room scan sees are logged and shown in the Entry window (next
-    /// launch) so the user can judge whether the correction is needed.
+    /// The vertical shift for the game: only the user's floor height offset, added to whatever the headset reports.
+    /// The head height is logged and shown in the Entry window (next launch) so the user can judge whether it is needed.
     func floorShift(headY: Float) -> Float {
         let settings = ALVRClientApp.gStore.settings
         let shift = Float(settings.heightOffsetCm) / 100.0
@@ -962,8 +952,7 @@ class WorldTracker {
             let floorText = detectedFloorY.map { String(format: "%.2f", $0) } ?? "none"
             let line = String(format: "[floor] head y %.2f floor y %@ (head above floor %@) offset %d cm", headY, floorText, detectedFloorY.map { String(format: "%.2f", headY - $0) } ?? "-", settings.heightOffsetCm)
             line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_ERROR.rawValue), $0) }
-            let floorY = detectedFloorY
-            Task { @MainActor in FloorReadout.shared.record(headY: headY, floorY: floorY) }
+            Task { @MainActor in FloorReadout.shared.record(headY: headY) }
         }
         return shift
     }
