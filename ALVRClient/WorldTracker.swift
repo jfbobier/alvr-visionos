@@ -2149,13 +2149,12 @@ class WorldTracker {
             //print(controller.vendorName, controller.physicalInputProfile.elements, controller.physicalInputProfile.allButtons)
 
             controller.input.inputStateQueueDepth = 1
-            guard let capturedInput = controller.input.nextInputState() else {
-                continue
-            }
             let claimHomeButton = ALVRClientApp.gStore.settings.claimControllerHomeButton
             if claimHomeButton {
-                // visionOS keeps the PS/Home button for itself unless the app asks to receive it (and the
-                // user allows it in Settings on visionOS 27).
+                // visionOS keeps the PS/Home button for itself unless the app asks to receive it and the user
+                // listed the app under Home Button Overrides (Settings > General > Game Controller, visionOS 27).
+                // Asked on every pass, whether or not new input arrived, so the claim is in place before the
+                // first press rather than after it.
                 let claimReport = controller.claimHomeButtonFromSystem()
                 if CACurrentMediaTime() - lastHomeButtonReport > 5.0 {
                     lastHomeButtonReport = CACurrentMediaTime()
@@ -2169,12 +2168,26 @@ class WorldTracker {
                     }
                 }
             }
-            // The Home button drives the system click when we know it reaches us. Otherwise the menu
-            // button keeps doubling as the system click, like before.
+            guard let capturedInput = controller.input.nextInputState() else {
+                continue
+            }
+            // The Home button drives the system click (and the game's menu, see below) when it arrives. The menu
+            // button keeps doubling as the system click until the Home button is known to reach the app.
             let buttons = capturedInput.buttons
             let homeButtonReachesApp = claimHomeButton && ControllerHomeButtonStatus.shared.reachesApp
-            let homePressed = buttons["Button Home"]?.pressedInput.isPressed ?? false
+            // Read from the live-input snapshot and from the physical input profile: the two collections are
+            // not identical for the Sense controllers.
+            let homePressedLive = buttons["Button Home"]?.pressedInput.isPressed ?? false
+            let homePressedProfile = controller.homeButtonPressedInProfile
+            let homePressed = homePressedLive || homePressedProfile
             let homeTouched = buttons["Button Home"]?.touchedInput?.isTouched ?? false
+            if homePressed != (isLeft ? lastHomePressedLeft : lastHomePressedRight) {
+                if isLeft { lastHomePressedLeft = homePressed } else { lastHomePressedRight = homePressed }
+                if homePressed {
+                    let line = "[home] press \(isLeft ? "left" : "right") live=\(homePressedLive) profile=\(homePressedProfile) inAppAction=\(ControllerHomeButtonStatus.shared.state)"
+                    line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_ERROR.rawValue), $0) }
+                }
+            }
             let dpads = capturedInput.dpads
             let axes = capturedInput.axes
 
@@ -2255,9 +2268,11 @@ class WorldTracker {
 
                         let menuPressed = buttons["Button Menu"]?.pressedInput.isPressed ?? false
                         let menuTouched = buttons["Button Menu"]?.touchedInput?.isTouched ?? false
-                        alvr_send_button(WorldTracker.leftMenuTouched, boolVal(menuTouched))
+                        // A PS press that reaches the app is the game's menu button as well as the system click:
+                        // AirFrameXR has no dashboard, so a bare system click would do nothing a player can see.
+                        alvr_send_button(WorldTracker.leftMenuTouched, boolVal(menuTouched || homeTouched))
                         alvr_send_button(WorldTracker.leftSystemTouched, boolVal(homeTouched || (!homeButtonReachesApp && menuTouched)))
-                        alvr_send_button(WorldTracker.leftMenuClick, boolVal(menuPressed))
+                        alvr_send_button(WorldTracker.leftMenuClick, boolVal(menuPressed || homePressed))
                         alvr_send_button(WorldTracker.leftSystemClick, boolVal(homePressed || (!homeButtonReachesApp && menuPressed)))
 
                     }
@@ -2288,9 +2303,11 @@ class WorldTracker {
 
                         let menuPressed = buttons["Button Menu"]?.pressedInput.isPressed ?? false
                         let menuTouched = buttons["Button Menu"]?.touchedInput?.isTouched ?? false
-                        alvr_send_button(WorldTracker.rightMenuTouched, boolVal(menuTouched))
+                        // A PS press that reaches the app is the game's menu button as well as the system click:
+                        // AirFrameXR has no dashboard, so a bare system click would do nothing a player can see.
+                        alvr_send_button(WorldTracker.rightMenuTouched, boolVal(menuTouched || homeTouched))
                         alvr_send_button(WorldTracker.rightSystemTouched, boolVal(homeTouched || (!homeButtonReachesApp && menuTouched)))
-                        alvr_send_button(WorldTracker.rightMenuClick, boolVal(menuPressed))
+                        alvr_send_button(WorldTracker.rightMenuClick, boolVal(menuPressed || homePressed))
                         alvr_send_button(WorldTracker.rightSystemClick, boolVal(homePressed || (!homeButtonReachesApp && menuPressed)))
                     }
                 }
@@ -2546,6 +2563,8 @@ class WorldTracker {
     var lastSentTime = 0.0
     var lastHomeButtonStatusAttempt = 0.0
     var lastHomeButtonReport = 0.0
+    var lastHomePressedLeft = false
+    var lastHomePressedRight = false
     
     // TODO: figure out how stable Apple's predictions are into the future
     // targetTimestamp: The timestamp of the pose we will send to ALVR--capped by how far we can predict forward.

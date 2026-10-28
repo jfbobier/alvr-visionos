@@ -37,9 +37,17 @@ extension GCController {
             if button.preferredSystemGestureState != .disabled {
                 button.preferredSystemGestureState = .disabled
             }
-            report.append("\(name)=\(button.preferredSystemGestureState == .disabled ? "claimed" : "refused")")
+            let state = button.preferredSystemGestureState == .disabled ? "claimed" : "refused"
+            report.append("\(name)=\(state)\(button.isBoundToSystemGesture ? "/bound" : "")")
         }
         return report.joined(separator: " ")
+    }
+
+    /// The Home (PS) button as the physical input profile sees it. The live-input snapshot (`input.nextInputState()`)
+    /// and the profile are two collections, and Apple has acknowledged they differ for the Sense controllers,
+    /// so the press is read from both.
+    var homeButtonPressedInProfile: Bool {
+        physicalInputProfile.buttons[GCInputButtonHome]?.isPressed ?? false
     }
 }
 
