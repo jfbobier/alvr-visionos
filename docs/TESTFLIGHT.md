@@ -262,6 +262,11 @@ After the first upload (10 to 20 minutes of processing, you get an email), open
    - **Internal testers** (instant, no review, up to 100): people you add at
      **https://appstoreconnect.apple.com/access/users** (button **+**, role **Developer** or **Marketing** is enough; they
      need an Apple ID). Then in TestFlight: **Internal Testing** > **+** > create a group > add them.
+     **When you create the group, keep the box _Enable automatic distribution_ ticked** (it is ticked by default; picture:
+     https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-internal-testers , dialog "Create New
+     Internal Group"). With it, every new build is sent to the group by itself. **Apple does not let you change it
+     afterwards**: for a group made without it, create a new group with the box ticked, invite the same people, and delete
+     the old one. (Without it, someone has to open the group and click **Add Builds** after every upload.)
    - **External testers** (a community or Discord group: only an email address or a link, no developer account needed):
      **External Testing** > **+** > create a group > **Enable Public Link** and share the link. The **first build of a
      version goes through a short Beta App Review** (usually under a day).
