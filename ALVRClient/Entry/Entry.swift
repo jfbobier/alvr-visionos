@@ -24,9 +24,9 @@ struct Entry: View {
 
     private var floorReading: String {
         guard let head = floorReadout.headY else {
-            return "Headset detected: not yet"
+            return "–"
         }
-        return String(format: "Headset detected %.2f m above the floor", head)
+        return String(format: "%.2f m", head)
     }
 
     var body: some View {
@@ -58,9 +58,12 @@ struct Entry: View {
             .frame(minHeight: 200)
 
             VStack {
-                Text(floorReading)
-                    .foregroundStyle(floorReadingIsLive ? .primary : .secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack {
+                    Text("Headset height above floor")
+                    Spacer()
+                    Text(floorReading)
+                        .foregroundStyle(floorReadingIsLive ? .primary : .secondary)
+                }
                     .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
                         guard !EventHandler.shared.renderStarted else { return }
                         if let y = WorldTracker.shared.currentHeadHeight() {
@@ -70,9 +73,12 @@ struct Entry: View {
                             floorReadingIsLive = false
                         }
                     }
-                Text(String(format: "Floor height offset: %+d cm", gStore.settings.heightOffsetCm))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top)
+                HStack {
+                    Text("Floor height offset")
+                    Spacer()
+                    Text(String(format: "%+d cm", gStore.settings.heightOffsetCm))
+                }
+                .padding(.top)
                 Slider(value: heightOffsetCm, in: -50...50, step: 1) {
                     Text("Floor height offset")
                 }
