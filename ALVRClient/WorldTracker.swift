@@ -448,6 +448,8 @@ class WorldTracker {
     /// Raw hand pinch (thumb tip to index tip) as a click, with hysteresis; see sendTracking.
     var leftHandPinchDown = false
     var rightHandPinchDown = false
+    var lastPinchLogTime = 0.0
+    var pinchLogPending = ["-", "-"]
     var bothPinchSystemButtonTime: Float = 0.0
     
     var rightSelectionRayId = -1
@@ -2018,8 +2020,8 @@ class WorldTracker {
         // thing the scattered `*PinchTrigger <= 0.0` guards do for the
         // GCController paths.
         var suppression = BindingSuppression()
-        suppression.leftTrigger = leftPinchTrigger > 0.0
-        suppression.rightTrigger = rightPinchTrigger > 0.0
+        suppression.leftTrigger = leftPinchTrigger > 0.0 || leftHandPinchDown
+        suppression.rightTrigger = rightPinchTrigger > 0.0 || rightHandPinchDown
 
         InputRouter.route(snapshot: snapshot,
                           profile: WorldTracker.steamControllerProfile,
@@ -2110,7 +2112,7 @@ class WorldTracker {
                 //alvr_send_button(WorldTracker.rightMenuClick, boolVal((buttons["Button Options"]?.pressedInput.isPressed ?? false) ||
                 //                                                      (buttons["Button Share"]?.pressedInput.isPressed ?? false) ))
 
-                if rightPinchTrigger <= 0.0 {
+                if rightPinchTrigger <= 0.0 && !rightHandPinchDown {
                     alvr_send_button(WorldTracker.rightTriggerValue, scalarVal(buttons["Secondary Button"]?.pressedInput.value ?? 0.0))
                     alvr_send_button(WorldTracker.rightTriggerClick, boolVal(buttons["Secondary Button"]?.pressedInput.isPressed ?? false))
                     alvr_send_button(WorldTracker.rightTriggerTouched, boolVal(buttons["Secondary Button"]?.touchedInput?.isTouched ?? false))
@@ -2243,7 +2245,7 @@ class WorldTracker {
                         alvr_send_button(WorldTracker.leftThumbstickClick, boolVal(buttons["Thumbstick Button"]?.pressedInput.isPressed ?? false))
                         alvr_send_button(WorldTracker.leftThumbstickX, scalarVal(dpads["Thumbstick"]?.xAxis.value ?? 0.0))
                         alvr_send_button(WorldTracker.leftThumbstickY, scalarVal(dpads["Thumbstick"]?.yAxis.value ?? 0.0))
-                        if leftPinchTrigger <= 0.0 {
+                        if leftPinchTrigger <= 0.0 && !leftHandPinchDown {
                             alvr_send_button(WorldTracker.leftTriggerClick, boolVal(buttons["Trigger"]?.pressedInput.isPressed ?? false))
                             alvr_send_button(WorldTracker.leftTriggerValue, scalarVal(buttons["Trigger"]?.pressedInput.value ?? 0.0 ))
                         }
@@ -2278,7 +2280,7 @@ class WorldTracker {
                         alvr_send_button(WorldTracker.rightThumbstickX, scalarVal(dpads["Thumbstick"]?.xAxis.value ?? 0.0))
                         alvr_send_button(WorldTracker.rightThumbstickY, scalarVal(dpads["Thumbstick"]?.yAxis.value ?? 0.0))
 
-                        if rightPinchTrigger <= 0.0 {
+                        if rightPinchTrigger <= 0.0 && !rightHandPinchDown {
                             alvr_send_button(WorldTracker.rightTriggerClick, boolVal(buttons["Trigger"]?.pressedInput.isPressed ?? false))
                             alvr_send_button(WorldTracker.rightTriggerValue, scalarVal(buttons["Trigger"]?.pressedInput.value ?? 0.0))
                         }
@@ -2325,11 +2327,11 @@ class WorldTracker {
                     alvr_send_button(WorldTracker.leftButtonX, boolVal(gp.dpad.down.isPressed || gp.dpad.left.isPressed))
 
                     // ZL/ZR -> Trigger
-                    if self.leftPinchTrigger <= 0.0 {
+                    if self.leftPinchTrigger <= 0.0 && !self.leftHandPinchDown {
                         alvr_send_button(WorldTracker.leftTriggerClick, boolVal(gp.leftTrigger.isPressed))
                         alvr_send_button(WorldTracker.leftTriggerValue, scalarVal(gp.leftTrigger.value))
                     }
-                    if self.rightPinchTrigger <= 0.0 {
+                    if self.rightPinchTrigger <= 0.0 && !self.rightHandPinchDown {
                         alvr_send_button(WorldTracker.rightTriggerClick, boolVal(gp.rightTrigger.isPressed))
                         alvr_send_button(WorldTracker.rightTriggerValue, scalarVal(gp.rightTrigger.value))
                     }
@@ -2382,7 +2384,7 @@ class WorldTracker {
                         alvr_send_button(WorldTracker.rightMenuClick,
                                          boolVal((buttons["Button Menu"]?.pressedInput.isPressed ?? false) || buttons["Button Home"]?.pressedInput.isPressed ?? false))
 
-                        if rightPinchTrigger <= 0.0 {
+                        if rightPinchTrigger <= 0.0 && !rightHandPinchDown {
                             if #available(visionOS 26.0, *) {
                                 alvr_send_button(WorldTracker.rightTriggerValue, scalarVal(buttons["Right Trigger"]?.forceInput?.value ??  ((buttons["Right Trigger"]?.pressedInput.isPressed ?? false) ? 1.0 : 0.0)))
                             }
@@ -2416,7 +2418,7 @@ class WorldTracker {
                         alvr_send_button(WorldTracker.leftMenuClick,
                                          boolVal((buttons["Button Share"]?.pressedInput.isPressed ?? false) || (buttons["Button Options"]?.pressedInput.isPressed ?? false)))
 
-                        if leftPinchTrigger <= 0.0 {
+                        if leftPinchTrigger <= 0.0 && !leftHandPinchDown {
                             if #available(visionOS 26.0, *) {
                                 alvr_send_button(WorldTracker.leftTriggerValue, scalarVal(buttons["Left Trigger"]?.forceInput?.value ??  ((buttons["Left Trigger"]?.pressedInput.isPressed ?? false) ? 1.0 : 0.0)))
                             }
@@ -2452,7 +2454,7 @@ class WorldTracker {
                         alvr_send_button(WorldTracker.rightMenuClick, boolVal((buttons["Button Options"]?.pressedInput.isPressed ?? false) ||
                                                                               (buttons["Button Share"]?.pressedInput.isPressed ?? false) ))
 
-                        if rightPinchTrigger <= 0.0 {
+                        if rightPinchTrigger <= 0.0 && !rightHandPinchDown {
                             if #available(visionOS 26.0, *) {
                                 alvr_send_button(WorldTracker.rightTriggerValue, scalarVal(buttons["Right Trigger"]?.forceInput?.value ??  ((buttons["Right Trigger"]?.pressedInput.isPressed ?? false) ? 1.0 : 0.0)))
                             }
@@ -2489,7 +2491,7 @@ class WorldTracker {
                         alvr_send_button(WorldTracker.leftMenuClick, boolVal((buttons["Button Menu"]?.pressedInput.isPressed ?? false) ||
                                                                              (buttons["Button Home"]?.pressedInput.isPressed ?? false)))
 
-                        if leftPinchTrigger <= 0.0 {
+                        if leftPinchTrigger <= 0.0 && !leftHandPinchDown {
                             if #available(visionOS 26.0, *) {
                                 alvr_send_button(WorldTracker.leftTriggerValue, scalarVal(buttons["Left Trigger"]?.forceInput?.value ??  ((buttons["Left Trigger"]?.pressedInput.isPressed ?? false) ? 1.0 : 0.0)))
                             }
@@ -3267,27 +3269,33 @@ class WorldTracker {
         lastLeftIsPinching = leftIsPinching
         lastRightIsPinching = rightIsPinching
 
-        // Hand pinch = the hand's trigger (left hand = left click, right hand = right click). Only in hand mode: no
-        // controller connected, and not when the streamer derives the pinch from the skeleton itself.
-        if !handGesturesEnabled && controllerLeftMotion == nil && controllerRightMotion == nil && GCController.controllers().isEmpty {
-            for (hand, isLeft) in [(handPoses.leftHand, true), (handPoses.rightHand, false)] {
-                guard let hand = hand else { continue }
+        // Hand pinch = the hand's trigger (left hand = left click, right hand = right click). A hand is skipped only
+        // while a tracked controller drives it, or when the streamer derives the pinch from the skeleton itself; a
+        // paired controller that is idle or not tracked no longer disables it. The controller input paths above and
+        // in sendGamepadInputs() leave the trigger alone while a hand pinch is down.
+        // Down under 2.0 cm thumb-tip to index-tip, up over 3.0 cm (ALVR's own test is about 1.65 cm, HandVector
+        // reads a full pinch at 0.8 cm); the analog value ramps from 4 cm (0) to 2 cm (1).
+        if !handGesturesEnabled {
+            for (hand, isLeft, controllerMotion) in [(handPoses.leftHand, true, controllerLeftMotion), (handPoses.rightHand, false, controllerRightMotion)] {
+                if controllerMotion != nil {
+                    if isLeft { leftHandPinchDown = false } else { rightHandPinchDown = false }
+                    continue
+                }
                 var distance: Float? = nil
-                if hand.isTracked, let skeleton = hand.handSkeleton {
+                if let hand = hand, hand.isTracked, let skeleton = hand.handSkeleton {
                     let thumb = skeleton.joint(.thumbTip)
                     let index = skeleton.joint(.indexFingerTip)
                     if thumb.isTracked && index.isTracked {
                         distance = simd_distance(thumb.anchorFromJointTransform.columns.3.asFloat3(), index.anchorFromJointTransform.columns.3.asFloat3())
                     }
                 }
-                // Down under 1.5 cm, up over 2.5 cm; the analog value ramps from 4 cm (0) to 1 cm (1).
                 var down = isLeft ? leftHandPinchDown : rightHandPinchDown
                 if let d = distance {
-                    down = down ? d < 0.025 : d < 0.015
+                    down = down ? d < 0.030 : d < 0.020
                 } else {
                     down = false
                 }
-                let value: Float = distance.map { min(max((0.040 - $0) / 0.030, 0.0), 1.0) } ?? 0.0
+                let value: Float = distance.map { min(max((0.040 - $0) / 0.020, 0.0), 1.0) } ?? 0.0
                 if isLeft {
                     leftHandPinchDown = down
                     alvr_send_button(WorldTracker.leftTriggerClick, boolVal(down))
@@ -3297,6 +3305,13 @@ class WorldTracker {
                     alvr_send_button(WorldTracker.rightTriggerClick, boolVal(down))
                     alvr_send_button(WorldTracker.rightTriggerValue, scalarVal(value))
                 }
+                pinchLogPending[isLeft ? 0 : 1] = String(format: "%@ d=%@ down=%d", isLeft ? "L" : "R", distance.map { String(format: "%.1fcm", $0 * 100) } ?? "-", down ? 1 : 0)
+            }
+            let now = CACurrentMediaTime()
+            if now - lastPinchLogTime > 2.0 {
+                lastPinchLogTime = now
+                let line = "[pinch] \(pinchLogPending[0]) | \(pinchLogPending[1]) controllers=\(GCController.controllers().count) motionL=\(controllerLeftMotion != nil) motionR=\(controllerRightMotion != nil)"
+                line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_ERROR.rawValue), $0) }
             }
         }
         
