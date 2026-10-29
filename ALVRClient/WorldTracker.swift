@@ -448,8 +448,6 @@ class WorldTracker {
     /// Raw hand pinch (thumb tip to index tip) as a click, with hysteresis; see sendTracking.
     var leftHandPinchDown = false
     var rightHandPinchDown = false
-    var lastPinchLogTime = 0.0
-    var pinchLogPending = ["-", "-"]
     var bothPinchSystemButtonTime: Float = 0.0
     
     var rightSelectionRayId = -1
@@ -3303,13 +3301,6 @@ class WorldTracker {
                     alvr_send_button(WorldTracker.rightTriggerClick, boolVal(down))
                     alvr_send_button(WorldTracker.rightTriggerValue, scalarVal(value))
                 }
-                pinchLogPending[isLeft ? 0 : 1] = String(format: "%@ d=%@ down=%d(sys)", isLeft ? "L" : "R", distance.map { String(format: "%.1fcm", $0 * 100) } ?? "-", down ? 1 : 0)
-            }
-            let now = CACurrentMediaTime()
-            if now - lastPinchLogTime > 2.0 {
-                lastPinchLogTime = now
-                let line = "[pinch] \(pinchLogPending[0]) | \(pinchLogPending[1]) controllers=\(GCController.controllers().count) motionL=\(controllerLeftMotion != nil) motionR=\(controllerRightMotion != nil)"
-                line.withCString { alvr_log(UInt8(ALVR_LOG_LEVEL_ERROR.rawValue), $0) }
             }
         }
         
