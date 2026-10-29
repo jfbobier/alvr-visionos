@@ -32,3 +32,20 @@ Repository Guidelines
 - After code changes, run an Xcode build (no simulator) before finalizing:
   `xcodebuild -project ALVRClient.xcodeproj -scheme ALVRClient -configuration Debug -destination 'generic/platform=visionOS' build`
 - If the build fails, fix it or report the failure with the error summary.
+
+## AirFrameXR fork notes (2026-10-29)
+- Branches: `airframexr-client` is the released client (tags `v1.2.0`...); `calibration` is the same app with no field-of-view ceiling
+  (`GlobalSettings.visibleFovTangents` returns 10.0), kept for the sweep sessions and rebased on the client's fixes; `main` tracks upstream.
+  Versions are numbered with the AirFrameXR streamer release they pair with (`README.md`, the TestFlight workflow's default `marketing_version`).
+- The calibration data (the wearer's rectangle) lives on the PC, never in this app: this app only declares a per-edge ceiling. Do not add
+  field-of-view sliders or presets here; change the ceiling constants only when a measured wearer exceeds them (AirFrameXR
+  `docs/FOV_CLIENT_CEILING.md`).
+- Hand click = the system pinch gesture (`handleSpatialEvent` -> `leftIsPinching` / `rightIsPinching`), not the skeleton distance. Keep it that
+  way; the distance-based detector missed pinches and fired on hand rotation. Debug lines go to the streamer's log through `alvr_log`
+  (`[pinch]`, `[home]`, `[floor]` tags); remove them before a release.
+- Chroma key: the render pass clears to opaque black and keyed pixels are written as premultiplied zero (the video pipeline does not blend).
+  Never bring back `discard_fragment()` for keyed pixels or a transparent clear: the former kills the key, the latter shows the room past the frame.
+- Cross-repository: the client's behaviour is documented in the AirFrameXR repository (`docs/AVP_FOV.md`, `docs/FOV_CALIBRATION.md`,
+  `docs/FOV_CLIENT_CEILING.md`, `docs/FOV_GRID.md`); this README carries the summary and the release list.
+- Signing: every TestFlight run mints a certificate; on "maximum number of certificates" run the workflow with the revoke input ticked
+  (`docs/TESTFLIGHT.md`).
