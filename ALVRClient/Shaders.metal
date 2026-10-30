@@ -225,6 +225,30 @@ vertex ColorInOut videoFrameVertexShader(ushort vertexID [[vertex_id]],
     return videoFrameVertexShaderCommon(vertexID, which, uniforms.projectionMatrix, uniforms.modelViewMatrixFrame, uniforms.tangents);
 }
 
+// The ring between the declared frame and the edge of the view: 10 vertices, a triangle strip of 4 quads around the frame quad. Inner vertices sit on the
+// frame quad's corners, outer ones far outside the view; both carry the corner's texCoord, so the picture's edge texel is extended outward (clamp to
+// edge) with no per-pixel clamp and no overdraw of the frame itself. Draws amp_id's eye only (the frame quad's vertexStart is 0 for both eyes).
+vertex ColorInOut videoFrameBorderVertexShader(ushort vertexID [[vertex_id]],
+                               ushort amp_id [[amplification_id]],
+                               constant UniformsArray & uniformsArray [[ buffer(BufferIndexUniforms) ]])
+{
+    Uniforms uniforms = uniformsArray.uniforms[amp_id];
+    // corners in strip order: top-left, top-right, bottom-right, bottom-left, top-left (same uv as the frame quad's vertices 0..3)
+    const float2 cornerUV[5] = { float2(0.0, 1.0), float2(1.0, 1.0), float2(1.0, 0.0), float2(0.0, 0.0), float2(0.0, 1.0) };
+    float2 uv = cornerUV[vertexID >> ushort(1)];
+    bool outer = (vertexID & ushort(1)) == 0;
+
+    // the frame quad's own extents (tangents: left, right, top, bottom), pushed out by 4 (tan 76 degrees) for the outer vertices
+    float4 t = uniforms.tangents + (outer ? 4.0 : 0.0);
+    float x = (uv.x < 0.5 ? -t[0] : t[1]) * 500.0;
+    float y = (uv.y > 0.5 ? -t[3] : t[2]) * 500.0;
+
+    ColorInOut out;
+    out.position = uniforms.projectionMatrix * uniforms.modelViewMatrixFrame * float4(x, y, -500.0, 1.0);
+    out.texCoord = float2(uv.x * 0.5 + (amp_id == 0 ? 0.0 : 0.5), uv.y);
+    return out;
+}
+
 float3 NonlinearToLinearRGB(float3 color) {
     const float DIV12 = 1. / 12.92;
     const float DIV1 = 1. / 1.055;
@@ -331,10 +355,9 @@ half4 videoFrameFragmentShader_common(half3 color_in) {
     half3 color = EncodingNonlinearToLinearRGB_half(color_in, ENCODING_GAMMA);
     
     half4 colorOut = half4(color.rgb, 1.0);
-    // Keyed pixels are WRITTEN transparent (premultiplied zero), not discarded: the render pass clears to opaque black so that nothing shows past
-    // the frame's edge, and a discarded fragment would leave that black in place (the chroma key died with the opaque clear, 2026-10-29). This
-    // pipeline does not blend, so the zero replaces the pixel and the compositor shows the room there: between games (the idle colour), around the
-    // desktop mirror (its background is the idle colour), never in a game, which paints its own picture.
+    // Keyed pixels are WRITTEN transparent (premultiplied zero), not discarded: a discarded fragment would leave whatever the render pass cleared
+    // to in place. This pipeline does not blend, so the zero replaces the pixel and the compositor shows the room there: between games (the idle
+    // colour), around the desktop mirror (its background is the idle colour), never in a game, which paints its own picture.
     if (CHROMAKEY_ENABLED && CHROMAKEY_MODE != 0) {
         half mask = chromaKeyMaskFromStreamer(color.rgb);
         // Premultiplied alpha, as the compositor expects
@@ -369,13 +392,13 @@ half4 videoFrameFragmentShader_common(half3 color_in) {
     //color = linearToDisplayP3 * color;
 }
 
-fragment half4 videoFrameFragmentShader_YpCbCrBiPlanar(ColorInOut in [[stage_in]], texture2d<half> in_tex_y, texture2d<half> in_tex_uv) {
+half3 videoFrameSampleYpCbCrBiPlanar(float2 texCoord, texture2d<half> in_tex_y, texture2d<half> in_tex_uv) {
     
     float2 sampleCoord;
     if (FFR_ENABLED) {
-        sampleCoord = decompressAxisAlignedCoord(in.texCoord);
+        sampleCoord = decompressAxisAlignedCoord(texCoord);
     } else {
-        sampleCoord = in.texCoord;
+        sampleCoord = texCoord;
     }
     
     constexpr sampler colorSampler(mip_filter::none,
@@ -393,27 +416,42 @@ fragment half4 videoFrameFragmentShader_YpCbCrBiPlanar(ColorInOut in [[stage_in]
     );
     
     half3 rgb_uncorrect = half3((transform * ycbcr).rgb);
-    half3 color = NonlinearToLinearRGB_half(rgb_uncorrect);
-    
-    return videoFrameFragmentShader_common(color);
+    return NonlinearToLinearRGB_half(rgb_uncorrect);
 }
 
-fragment half4 videoFrameFragmentShader_SecretYpCbCrFormats(ColorInOut in [[stage_in]], texture2d<half> in_tex_y) {
+half3 videoFrameSampleSecretYpCbCrFormats(float2 texCoord, texture2d<half> in_tex_y) {
     
     float2 sampleCoord;
     if (FFR_ENABLED) {
-        sampleCoord = decompressAxisAlignedCoord(in.texCoord);
+        sampleCoord = decompressAxisAlignedCoord(texCoord);
     } else {
-        sampleCoord = in.texCoord;
+        sampleCoord = texCoord;
     }
     
     constexpr sampler colorSampler(mip_filter::none,
                                    mag_filter::linear,
                                    min_filter::linear);
     
-    half3 color = in_tex_y.sample(colorSampler, sampleCoord).rgb;
-    
-    return videoFrameFragmentShader_common(color);
+    return in_tex_y.sample(colorSampler, sampleCoord).rgb;
+}
+
+fragment half4 videoFrameFragmentShader_YpCbCrBiPlanar(ColorInOut in [[stage_in]], texture2d<half> in_tex_y, texture2d<half> in_tex_uv) {
+    return videoFrameFragmentShader_common(videoFrameSampleYpCbCrBiPlanar(in.texCoord, in_tex_y, in_tex_uv));
+}
+
+fragment half4 videoFrameFragmentShader_SecretYpCbCrFormats(ColorInOut in [[stage_in]], texture2d<half> in_tex_y) {
+    return videoFrameFragmentShader_common(videoFrameSampleSecretYpCbCrFormats(in.texCoord, in_tex_y));
+}
+
+// The ring outside the declared frame (videoFrameBorderVertexShader): the same pixel's key mask, but black. Opaque black where the frame's edge is
+// picture (a game), transparent where it is the key colour (the idle frame, the desktop mirror's background): the room shows all the way out.
+// Without a chroma key the common function returns alpha 1, so the ring is opaque black, as the clear colour already is.
+fragment half4 videoFrameBorderFragmentShader_YpCbCrBiPlanar(ColorInOut in [[stage_in]], texture2d<half> in_tex_y, texture2d<half> in_tex_uv) {
+    return half4(0.0h, 0.0h, 0.0h, videoFrameFragmentShader_common(videoFrameSampleYpCbCrBiPlanar(in.texCoord, in_tex_y, in_tex_uv)).a);
+}
+
+fragment half4 videoFrameBorderFragmentShader_SecretYpCbCrFormats(ColorInOut in [[stage_in]], texture2d<half> in_tex_y) {
+    return half4(0.0h, 0.0h, 0.0h, videoFrameFragmentShader_common(videoFrameSampleSecretYpCbCrFormats(in.texCoord, in_tex_y)).a);
 }
 
 fragment float4 videoFrameDepthFragmentShader(ColorInOut in [[stage_in]], texture2d<float> in_tex_y, texture2d<float> in_tex_uv) {

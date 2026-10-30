@@ -107,6 +107,10 @@ class Renderer {
     let mtlVertexDescriptorNoUV: MTLVertexDescriptor
     var videoFramePipelineState_YpCbCrBiPlanar: MTLRenderPipelineState!
     var videoFramePipelineState_SecretYpCbCrFormats: MTLRenderPipelineState!
+    // The ring between the declared frame and the edge of the view (chroma key on only): see videoFrameBorderVertexShader
+    var videoBorderPipelineState_YpCbCrBiPlanar: MTLRenderPipelineState!
+    var videoBorderPipelineState_SecretYpCbCrFormats: MTLRenderPipelineState!
+    var videoBorderPipelineState: MTLRenderPipelineState? // the one matching the frame being drawn
     var videoFrameDepthPipelineState: MTLRenderPipelineState!
     var fullscreenQuadBuffer:MTLBuffer!
     var unitVectorXYZBuffer:MTLBuffer!
@@ -325,6 +329,26 @@ class Renderer {
                             foveationVars: foveationVars,
                             variantName: "SecretYpCbCrFormats"
         )
+        videoBorderPipelineState_YpCbCrBiPlanar = try! buildRenderPipelineForVideoFrameWithDevice(
+                            device: device,
+                            mtlVertexDescriptor: mtlVertexDescriptor,
+                            colorFormat: layerRenderer?.configuration.colorFormat ?? currentRenderColorFormat,
+                            viewCount: layerRenderer?.properties.viewCount ?? renderViewCount,
+                            foveationVars: foveationVars,
+                            variantName: "YpCbCrBiPlanar",
+                            vertexName: "videoFrameBorderVertexShader",
+                            fragmentPrefix: "videoFrameBorderFragmentShader_"
+        )
+        videoBorderPipelineState_SecretYpCbCrFormats = try! buildRenderPipelineForVideoFrameWithDevice(
+                            device: device,
+                            mtlVertexDescriptor: mtlVertexDescriptor,
+                            colorFormat: layerRenderer?.configuration.colorFormat ?? currentRenderColorFormat,
+                            viewCount: layerRenderer?.properties.viewCount ?? renderViewCount,
+                            foveationVars: foveationVars,
+                            variantName: "SecretYpCbCrFormats",
+                            vertexName: "videoFrameBorderVertexShader",
+                            fragmentPrefix: "videoFrameBorderFragmentShader_"
+        )
         
         do {
             pipelineState = try Renderer.buildRenderPipelineWithDevice(device: device,
@@ -501,11 +525,13 @@ class Renderer {
                                                           colorFormat: MTLPixelFormat,
                                                           viewCount: Int,
                                                           foveationVars: FoveationVars,
-                                                          variantName: String) throws -> MTLRenderPipelineState {
+                                                          variantName: String,
+                                                          vertexName: String = "videoFrameVertexShader",
+                                                          fragmentPrefix: String = "videoFrameFragmentShader_") throws -> MTLRenderPipelineState {
         
 
         let library = device.makeDefaultLibrary()
-        let vertexFunction = library?.makeFunction(name: "videoFrameVertexShader")
+        let vertexFunction = library?.makeFunction(name: vertexName)
         let fragmentConstants = FFR.makeFunctionConstants(foveationVars)
         
         let settings = ALVRClientApp.gStore.settings
@@ -518,7 +544,7 @@ class Renderer {
         fragmentConstants.setConstantValue(&currentYuvTransform.columns.2, type: .float4, index: ALVRFunctionConstant.encodingYUVTransform2.rawValue)
         fragmentConstants.setConstantValue(&currentYuvTransform.columns.3, type: .float4, index: ALVRFunctionConstant.encodingYUVTransform3.rawValue)
         
-        let fragmentFunction = try library?.makeFunction(name: "videoFrameFragmentShader_" + variantName, constantValues: fragmentConstants)
+        let fragmentFunction = try library?.makeFunction(name: fragmentPrefix + variantName, constantValues: fragmentConstants)
 
         let pipelineDescriptor = MTLRenderPipelineDescriptor()
         pipelineDescriptor.label = "VideoFrameRenderPipeline_" + variantName
@@ -1131,10 +1157,9 @@ class Renderer {
         renderPassDescriptor.colorAttachments[0].texture = renderTargetColor
         renderPassDescriptor.colorAttachments[0].loadAction = .load
         renderPassDescriptor.colorAttachments[0].storeAction = .dontCare
-        // Black where nothing is drawn, chroma key or not: with a transparent clear the wearer saw the room past the frame's edge
-        // whenever the declared box ended inside the visible window (2026-10-29, the ceiling client). Keyed pixels still discard, so the
-        // passthrough shows through the picture where the streamer paints the key colour, never beyond the frame.
-        renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
+        // With a chroma key the clear is transparent and the ring outside the declared frame is drawn by renderStreamingFrame (black where the
+        // frame's edge is picture, transparent where it is the key colour); without one the clear is the opaque black.
+        renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0.0, green: 0.0, blue: 0.0, alpha: chromaKeyEnabled ? 0.0 : 1.0)
         renderPassDescriptor.depthAttachment.texture = renderTargetDepth
         renderPassDescriptor.depthAttachment.loadAction = .clear
         renderPassDescriptor.depthAttachment.storeAction = .store
@@ -1645,10 +1670,9 @@ class Renderer {
         renderPassDescriptor.colorAttachments[0].texture = renderTargetColor
         renderPassDescriptor.colorAttachments[0].loadAction = whichIdx == 0 ? .clear : .load
         renderPassDescriptor.colorAttachments[0].storeAction = .store
-        // Black where nothing is drawn, chroma key or not: with a transparent clear the wearer saw the room past the frame's edge
-        // whenever the declared box ended inside the visible window (2026-10-29, the ceiling client). Keyed pixels still discard, so the
-        // passthrough shows through the picture where the streamer paints the key colour, never beyond the frame.
-        renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
+        // With a chroma key the clear is transparent and the ring outside the declared frame is drawn by renderStreamingFrame (black where the
+        // frame's edge is picture, transparent where it is the key colour); without one the clear is the opaque black.
+        renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0.0, green: 0.0, blue: 0.0, alpha: chromaKeyEnabled ? 0.0 : 1.0)
         renderPassDescriptor.rasterizationRateMap = rasterizationRateMap
         
         renderPassDescriptor.renderTargetArrayLength = viewports.count
@@ -1673,9 +1697,11 @@ class Renderer {
         
         if VideoHandler.isFormatSecret(format) {
             renderEncoder.setRenderPipelineState(videoFramePipelineState_SecretYpCbCrFormats)
+            videoBorderPipelineState = videoBorderPipelineState_SecretYpCbCrFormats
         }
         else {
             renderEncoder.setRenderPipelineState(videoFramePipelineState_YpCbCrBiPlanar)
+            videoBorderPipelineState = videoBorderPipelineState_YpCbCrBiPlanar
         }
         
         //print("Pixel format \(formatStr) (\(format))")
@@ -1751,6 +1777,13 @@ class Renderer {
         }
         
         renderEncoder.drawPrimitives(type: .triangleStrip, vertexStart: whichIdx*4, vertexCount: 4)
+        
+        // The ring outside the declared frame, only when the chroma key is on (otherwise the clear is already opaque black). The frame's textures and
+        // uniforms are bound; the ring and the frame do not overlap.
+        if chromaKeyEnabled, let borderPipeline = videoBorderPipelineState {
+            renderEncoder.setRenderPipelineState(borderPipeline)
+            renderEncoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 10)
+        }
     }
     
     // Finish video frame encoding.

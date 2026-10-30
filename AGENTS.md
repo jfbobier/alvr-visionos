@@ -43,8 +43,10 @@ Repository Guidelines
 - Hand click = the system pinch gesture (`handleSpatialEvent` -> `leftIsPinching` / `rightIsPinching`), not the skeleton distance. Keep it that
   way; the distance-based detector missed pinches and fired on hand rotation. Debug lines go to the streamer's log through `alvr_log`
   (`[pinch]`, `[home]`, `[floor]` tags); remove them before a release.
-- Chroma key: the render pass clears to opaque black and keyed pixels are written as premultiplied zero (the video pipeline does not blend).
-  Never bring back `discard_fragment()` for keyed pixels or a transparent clear: the former kills the key, the latter shows the room past the frame.
+- Chroma key: with a key on, the render pass clears transparent and `videoFrameBorderVertexShader` draws a ring around the declared frame whose
+  alpha is the key mask of the frame's edge texel (black where the edge is picture, transparent where it is the key colour); without a key the
+  clear is opaque black and no ring is drawn. Keyed pixels are written as premultiplied zero (the video pipeline does not blend); never bring
+  back `discard_fragment()` for them (it leaves the clear colour in place).
 - Cross-repository: the client's behaviour is documented in the AirFrameXR repository (`docs/AVP_FOV.md`, `docs/FOV_CALIBRATION.md`,
   `docs/FOV_CLIENT_CEILING.md`, `docs/FOV_GRID.md`); this README carries the summary and the release list.
 - Signing: every TestFlight run mints a certificate; on "maximum number of certificates" run the workflow with the revoke input ticked

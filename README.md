@@ -5,7 +5,7 @@ PC runs the game through AirFrameXR's OpenXR runtime (frame generation, foveated
 the ALVR v20 protocol, and this app shows it on the Vision Pro with hand and PlayStation VR2 Sense controller
 tracking.
 
-Version 1.2.0 (numbered with the AirFrameXR streamer it pairs with). Nearly feature complete; what is left is listed at the end.
+Version 1.2.1 (numbered with the AirFrameXR streamer it pairs with). Nearly feature complete; what is left is listed at the end.
 
 ## Credits
 
@@ -77,6 +77,14 @@ Everything below is in the `airframexr-client` branch on top of upstream `main`.
 
 Same as upstream: see the [Building](https://github.com/alvr-org/alvr-visionos/wiki/Building) wiki page. The CI
 workflow files show the exact commands (Rust client core, cbindgen, `repack_alvr_client.sh`, then `xcodebuild`).
+
+## 1.2.1 (2026-10-30)
+
+- The ring outside the declared frame follows the picture's own edge when a chroma key is on: opaque black where the edge is picture (a
+  game), transparent where it is the key colour (between games, around the desktop mirror), so the idle passthrough is no longer framed
+  in black. Drawn as four thin strips around the frame (no overdraw of the picture), one texture sample per pixel, only while a key is on;
+  decided on the GPU from the decoded frame, so it changes on the same frame as the picture. Not measured on a headset yet (GPU time
+  with and without the ring is the check owed).
 
 ## 1.2.0 (2026-10-29)
 
